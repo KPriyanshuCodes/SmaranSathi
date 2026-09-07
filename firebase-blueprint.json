@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "User": {
+      "collection": "users",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "patient_id": { "type": "string", "required": false },
+        "name": { "type": "string", "required": true },
+        "role": { "type": "string", "required": true },
+        "pin": { "type": "string", "required": true },
+        "language_pref": { "type": "string", "required": true },
+        "phone": { "type": "string", "required": false },
+        "caregiver_code": { "type": "string", "required": false },
+        "connected_caregiver_id": { "type": "string", "required": false },
+        "connected_caregiver_name": { "type": "string", "required": false },
+        "age": { "type": "number", "required": false },
+        "location": { "type": "string", "required": false },
+        "diagnosis_note": { "type": "string", "required": false },
+        "avatar": { "type": "string", "required": false },
+        "dementia_stage": { "type": "string", "required": false },
+        "face_descriptor": { "type": "array", "required": false },
+        "face_registered_at": { "type": "string", "required": false },
+        "created_at": { "type": "string", "required": true }
+      }
+    },
+    "Reminder": {
+      "collection": "reminders",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "user_id": { "type": "string", "required": true },
+        "title": { "type": "string", "required": true },
+        "time": { "type": "string", "required": true },
+        "category": { "type": "string", "required": true },
+        "audio_prompt": { "type": "string", "required": false },
+        "priority": { "type": "string", "required": true },
+        "completed": { "type": "boolean", "required": true },
+        "completed_at": { "type": "string", "required": false }
+      }
+    },
+    "Journal": {
+      "collection": "journals",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "user_id": { "type": "string", "required": true },
+        "title": { "type": "string", "required": true },
+        "content": { "type": "string", "required": true },
+        "mood": { "type": "string", "required": true },
+        "recorded_at": { "type": "string", "required": true },
+        "language": { "type": "string", "required": true }
+      }
+    },
+    "FamilyMember": {
+      "collection": "family_members",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "user_id": { "type": "string", "required": true },
+        "name": { "type": "string", "required": true },
+        "relation": { "type": "string", "required": true },
+        "photo_url": { "type": "string", "required": false },
+        "notes": { "type": "string", "required": false }
+      }
+    },
+    "GameSession": {
+      "collection": "game_sessions",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "user_id": { "type": "string", "required": true },
+        "game_type": { "type": "string", "required": true },
+        "score": { "type": "number", "required": true },
+        "reaction_time_ms": { "type": "number", "required": true },
+        "completed_at": { "type": "string", "required": true }
+      }
+    },
+    "CaregiverLink": {
+      "collection": "caregiver_links",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "caregiver_id": { "type": "string", "required": true },
+        "elderly_id": { "type": "string", "required": true },
+        "relation": { "type": "string", "required": true },
+        "created_at": { "type": "string", "required": true }
+      }
+    }
+  }
+}

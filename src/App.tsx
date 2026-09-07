@@ -1,0 +1,927 @@
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { 
+  User, 
+  UserRole, 
+  RegionalLanguage, 
+  GameType, 
+  Reminder, 
+  Alert, 
+  FamiliarPerson, 
+  AIRecommendation, 
+  GameSession 
+} from './types';
+import { Header } from './components/common/Header';
+import { ElderlyHome } from './components/elderly/ElderlyHome';
+import { FamiliarPeopleView } from './components/elderly/FamiliarPeopleView';
+import { CaregiverDashboard } from './components/caregiver/CaregiverDashboard';
+import { MemoryMatchGame } from './components/games/MemoryMatchGame';
+import { SequenceRecallGame } from './components/games/SequenceRecallGame';
+import { PictureRecognitionGame } from './components/games/PictureRecognitionGame';
+import { SimplePuzzleGame } from './components/games/SimplePuzzleGame';
+import { FaceMatchGame } from './components/games/FaceMatchGame';
+import { GameFeedbackModal } from './components/games/GameFeedbackModal';
+import { LoginPage } from './components/auth/LoginPage';
+import { FAMILIAR_PEOPLE_SEED } from './data/nerContent';
+import { MemoryJournalModal } from './components/journal/MemoryJournalModal';
+import { OnboardingModal } from './components/onboarding/OnboardingModal';
+import { ReminderNotificationModal } from './components/reminders/ReminderNotificationModal';
+import { ConnectCaregiverModal } from './components/elderly/ConnectCaregiverModal';
+import { EditProfileModal } from './components/profile/EditProfileModal';
+import { isReminderDue, getTriggerKey, calculateSnoozeTime } from './utils/reminderScheduler';
+import { 
+  getAllUsersFromFirebase, 
+  saveUserToFirebase,
+  getRememberedUser, 
+  saveRememberedUser, 
+  clearRememberedUser, 
+  getAllLocallySavedUsers,
+  persistUserLocally,
+  persistMultipleUsersLocally,
+  getRemindersForUser, 
+  saveReminderToFirebase, 
+  toggleReminderInFirebase, 
+  deleteReminderFromFirebase, 
+  getFamilyForUser, 
+  saveFamilyMemberToFirebase, 
+  saveGameSessionToFirebase,
+  getAssignedElderlyIdsForCaregiver,
+  linkElderlyToCaregiverInFirebase
+} from './lib/firebase';
+
+export default function App() {
+  const [users, setUsers] = useState<User[]>(() => {
+    // Synchronously initialize with any locally saved profiles
+    return getAllLocallySavedUsers();
+  });
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [assignedPatientIds, setAssignedPatientIds] = useState<Set<string>>(new Set());
+  const [currentLanguage, setCurrentLanguage] = useState<RegionalLanguage>('as');
+  const [activeGame, setActiveGame] = useState<GameType | null>(null);
+  const [isFamilyAlbumOpen, setIsFamilyAlbumOpen] = useState<boolean>(false);
+  const [isJournalOpen, setIsJournalOpen] = useState<boolean>(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(false);
+  const [isConnectCaregiverOpen, setIsConnectCaregiverOpen] = useState<boolean>(false);
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState<boolean>(false);
+  const [editingTargetUser, setEditingTargetUser] = useState<User | null>(null);
+
+  // Sync users with Firebase Firestore and backend on mount, plus restore remembered session
+  useEffect(() => {
+    // 1. Immediately restore remembered user on this device for zero-friction launch
+    const remembered = getRememberedUser();
+    if (remembered) {
+      setCurrentUser(remembered);
+      if (remembered.language_pref) {
+        setCurrentLanguage(remembered.language_pref);
+      }
+    }
+
+    // 2. Load locally saved profiles instantly (zero delay)
+    const localProfiles = getAllLocallySavedUsers();
+    if (localProfiles && localProfiles.length > 0) {
+      setUsers((prev) => {
+        const map = new Map<string, User>();
+        for (const u of prev) map.set(u.id, u);
+        for (const u of localProfiles) map.set(u.id, { ...(map.get(u.id) || {}), ...u });
+        return Array.from(map.values());
+      });
+    }
+
+    // 3. Fetch all registered users from Firebase Firestore
+    getAllUsersFromFirebase()
+      .then((fbUsers) => {
+        if (fbUsers && fbUsers.length > 0) {
+          setUsers((prev) => {
+            const map = new Map<string, User>();
+            for (const u of prev) map.set(u.id, u);
+            for (const u of fbUsers) map.set(u.id, { ...(map.get(u.id) || {}), ...u });
+            const merged = Array.from(map.values());
+            persistMultipleUsersLocally(merged);
+            return merged;
+          });
+          if (remembered) {
+            const freshUser = fbUsers.find((u) => u.id === remembered.id);
+            if (freshUser) {
+              setCurrentUser(freshUser);
+              saveRememberedUser(freshUser);
+            }
+          }
+        }
+      })
+      .catch(() => {});
+
+    // 4. Fallback sync with backend API
+    fetch('/api/users')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.users && data.users.length > 0) {
+          setUsers((prev) => {
+            const map = new Map<string, User>();
+            for (const u of prev) map.set(u.id, u);
+            for (const u of data.users) map.set(u.id, { ...(map.get(u.id) || {}), ...u });
+            const merged = Array.from(map.values());
+            persistMultipleUsersLocally(merged);
+            return merged;
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Core Data
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [familiarPeople, setFamiliarPeople] = useState<FamiliarPerson[]>(FAMILIAR_PEOPLE_SEED);
+  const [recommendation, setRecommendation] = useState<AIRecommendation | null>(null);
+  const [trendData, setTrendData] = useState<any>(null);
+
+  // Time-Based Audible Reminder Alert System
+  const [activeAlarmReminder, setActiveAlarmReminder] = useState<Reminder | null>(null);
+  const [isAlarmModalOpen, setIsAlarmModalOpen] = useState<boolean>(false);
+  const triggeredKeysRef = useRef<Set<string>>(new Set());
+
+  // Continuous background checker to sound alarms when reminder times arrive
+  useEffect(() => {
+    if (!reminders || reminders.length === 0) return;
+
+    const checkDueReminders = () => {
+      const now = new Date();
+      for (const rem of reminders) {
+        if (!rem.completed) {
+          if (isReminderDue(rem, now)) {
+            const key = getTriggerKey(rem.id, now);
+            if (!triggeredKeysRef.current.has(key)) {
+              triggeredKeysRef.current.add(key);
+              setActiveAlarmReminder(rem);
+              setIsAlarmModalOpen(true);
+              break;
+            }
+          }
+        }
+      }
+    };
+
+    checkDueReminders();
+    const timer = setInterval(checkDueReminders, 4000);
+    return () => clearInterval(timer);
+  }, [reminders]);
+
+  // Feedback Modal State
+  const [feedbackOpen, setFeedbackOpen] = useState<boolean>(false);
+  const [lastStars, setLastStars] = useState<number>(3);
+  const [lastGameType, setLastGameType] = useState<GameType>('memory_match');
+
+  // Load patient data from Firebase and backend
+  const loadPatientData = async (userId: string) => {
+    try {
+      // 1. Fetch AI recommendation
+      const recRes = await fetch(`/api/ai/recommendation/${userId}`);
+      if (recRes.ok) {
+        const data = await recRes.json();
+        setRecommendation(data);
+      } else {
+        setRecommendation({
+          recommended_difficulty: 'easy',
+          next_game_type: 'memory_match',
+          engagement_score: 75,
+          rationale: 'Initial welcoming session: starting with culturally resonant memory cards at gentle difficulty.',
+          observation_note: 'Baseline assessment underway. Patient is encouraged to explore games without time constraints.',
+          ethical_disclaimer: 'This is a cognitive engagement tool, not a medical diagnosis.',
+          recent_trend: 'stable'
+        });
+      }
+
+      // 2. Fetch User-Specific Reminders from Firebase Firestore
+      const fbReminders = await getRemindersForUser(userId);
+      if (fbReminders && fbReminders.length > 0) {
+        setReminders(fbReminders);
+      } else {
+        const remRes = await fetch(`/api/reminders?userId=${userId}`);
+        if (remRes.ok) {
+          const data = await remRes.json();
+          const rems = data.reminders || [];
+          setReminders(rems);
+          // Mirror to Firebase for future sessions
+          for (const r of rems) {
+            saveReminderToFirebase(r).catch(() => {});
+          }
+        }
+      }
+
+      // 3. Fetch Alerts
+      const altRes = await fetch(`/api/alerts/${userId}`);
+      if (altRes.ok) {
+        const data = await altRes.json();
+        setAlerts(data.alerts || []);
+      }
+
+      // 4. Fetch User-Specific Familiar People from Firebase Firestore
+      const fbPeople = await getFamilyForUser(userId);
+      if (fbPeople && fbPeople.length > 0) {
+        setFamiliarPeople(fbPeople);
+      } else {
+        const famRes = await fetch(`/api/familiar-people/${userId}`);
+        if (famRes.ok) {
+          const data = await famRes.json();
+          if (data.people && data.people.length > 0) {
+            setFamiliarPeople(data.people);
+            for (const p of data.people) {
+              saveFamilyMemberToFirebase(p).catch(() => {});
+            }
+          } else {
+            setFamiliarPeople(FAMILIAR_PEOPLE_SEED);
+          }
+        }
+      }
+
+      // 5. Fetch Performance Trends
+      const trendRes = await fetch(`/api/performance-trends/${userId}`);
+      if (trendRes.ok) {
+        const data = await trendRes.json();
+        setTrendData(data);
+      }
+    } catch (e) {
+      console.warn('Backend/Firebase load error, using robust in-memory state', e);
+    }
+  };
+
+  // Synchronize assigned patients strictly for caregiver or self for elderly
+  useEffect(() => {
+    if (!currentUser) {
+      setAssignedPatientIds(new Set());
+      setSelectedPatientId(null);
+      return;
+    }
+
+    if (currentUser.language_pref) {
+      setCurrentLanguage(currentUser.language_pref);
+    }
+
+    if (currentUser.role === 'elderly') {
+      // Elderly user views their own data
+      setAssignedPatientIds(new Set());
+      loadPatientData(currentUser.id);
+    } else if (currentUser.role === 'caregiver') {
+      // Caregiver views ONLY elderly patients who have assigned them
+      const fetchAssigned = async () => {
+        try {
+          const fbIds = await getAssignedElderlyIdsForCaregiver(
+            currentUser.id,
+            currentUser.caregiver_code
+          );
+
+          const cgParam = currentUser.caregiver_code || currentUser.id;
+          const res = await fetch(`/api/patients/${encodeURIComponent(cgParam)}`);
+          let backendIds: string[] = [];
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.patients)) {
+              backendIds = data.patients.map((p: User) => p.id);
+            }
+          }
+
+          // Also check currently loaded users in state with matching connected_caregiver_id
+          const cgCode = (currentUser.caregiver_code || '').trim().toUpperCase();
+          const cgId = currentUser.id.trim().toUpperCase();
+          const localAssigned = users
+            .filter((u) => {
+              if (u.role !== 'elderly') return false;
+              const conn = (u.connected_caregiver_id || '').trim().toUpperCase();
+              return conn && (conn === cgCode || conn === cgId);
+            })
+            .map((u) => u.id);
+
+          const allAssigned = new Set([...fbIds, ...backendIds, ...localAssigned]);
+          setAssignedPatientIds(allAssigned);
+
+          if (allAssigned.size > 0) {
+            setSelectedPatientId((prev) => {
+              const target = (prev && allAssigned.has(prev)) ? prev : Array.from(allAssigned)[0];
+              loadPatientData(target);
+              return target;
+            });
+          } else {
+            setSelectedPatientId(null);
+            // Strict privacy: Clear other patients' sensitive data
+            setReminders([]);
+            setAlerts([]);
+            setFamiliarPeople([]);
+            setRecommendation(null);
+            setTrendData(null);
+          }
+        } catch (err) {
+          console.warn('Error fetching assigned patients:', err);
+        }
+      };
+
+      fetchAssigned();
+    }
+  }, [currentUser?.id, currentUser?.role, currentUser?.caregiver_code, users.length]);
+
+  // Handle Login & Session Remembering
+  const handleLogin = (user: User) => {
+    saveRememberedUser(user);
+    setCurrentUser(user);
+    if (user.language_pref) {
+      setCurrentLanguage(user.language_pref);
+    }
+    setActiveGame(null);
+    setIsFamilyAlbumOpen(false);
+
+    // Keep users state synced
+    setUsers((prev) => {
+      const exists = prev.some((u) => u.id === user.id);
+      return exists ? prev.map((u) => (u.id === user.id ? user : u)) : [user, ...prev];
+    });
+
+    if (user.role === 'elderly') {
+      loadPatientData(user.id);
+      if (!user.connected_caregiver_id) {
+        setIsConnectCaregiverOpen(true);
+      }
+    }
+  };
+
+  // Direct patient linking handler from Caregiver dashboard
+  const handleCaregiverConnectPatient = async (identifier: string): Promise<{ success: boolean; message?: string }> => {
+    if (!currentUser || currentUser.role !== 'caregiver') {
+      return { success: false, message: 'Only caregivers can link patients.' };
+    }
+
+    const clean = identifier.trim().toLowerCase();
+    const matched = users.find((u) => {
+      if (u.role !== 'elderly') return false;
+      if (u.id.toLowerCase() === clean) return true;
+      if (u.name.toLowerCase().includes(clean)) return true;
+      if (u.phone && u.phone.toLowerCase().includes(clean)) return true;
+      return false;
+    });
+
+    if (!matched) {
+      return { success: false, message: 'Patient not found. Check Patient ID, phone or name.' };
+    }
+
+    try {
+      await linkElderlyToCaregiverInFirebase(matched.id, currentUser);
+      fetch('/api/caregivers/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          caregiver_id: currentUser.id,
+          caregiver_code: currentUser.caregiver_code,
+          elderly_id: matched.id
+        })
+      }).catch(() => {});
+
+      const updatedPatient: User = {
+        ...matched,
+        connected_caregiver_id: currentUser.caregiver_code || currentUser.id,
+        connected_caregiver_name: currentUser.name
+      };
+      persistUserLocally(updatedPatient);
+      setUsers((prev) => prev.map((u) => (u.id === matched.id ? updatedPatient : u)));
+      setAssignedPatientIds((prev) => new Set([...prev, matched.id]));
+      setSelectedPatientId(matched.id);
+      loadPatientData(matched.id);
+
+      return { success: true, message: `Successfully connected to ${matched.name}!` };
+    } catch (err) {
+      console.warn('Failed to link patient:', err);
+      return { success: false, message: 'Could not link patient. Please try again.' };
+    }
+  };
+
+  // Handle Register New User (Fill Details or Randomize)
+  const handleRegisterUser = (newUser: User) => {
+    persistUserLocally(newUser);
+    setUsers((prev) => [newUser, ...prev.filter((u) => u.id !== newUser.id)]);
+    // Sync with backend store as well
+    fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newUser),
+    }).catch(() => {});
+  };
+
+  // Handle Logout (Clears remembered session)
+  const handleLogout = () => {
+    clearRememberedUser();
+    setCurrentUser(null);
+    setSelectedPatientId(null);
+    setActiveGame(null);
+    setIsFamilyAlbumOpen(false);
+    setIsConnectCaregiverOpen(false);
+    setIsEditProfileOpen(false);
+    setEditingTargetUser(null);
+  };
+
+  // Open Edit Profile Modal
+  const handleOpenEditProfile = (targetUser?: User | null) => {
+    const target = targetUser || currentUser;
+    if (target) {
+      setEditingTargetUser(target);
+      setIsEditProfileOpen(true);
+    }
+  };
+
+  // Save Updated Profile & Photo (Firestore & Session Persistence)
+  const handleUpdateUser = async (updatedUser: User) => {
+    // 1. Immediately update local permanent registry
+    persistUserLocally(updatedUser);
+
+    try {
+      // 2. Persist directly to Firebase Firestore
+      await saveUserToFirebase(updatedUser);
+
+      // 3. If it's the current user, update session memory & UI language
+      if (currentUser && currentUser.id === updatedUser.id) {
+        saveRememberedUser(updatedUser);
+        setCurrentUser(updatedUser);
+        if (updatedUser.language_pref) {
+          setCurrentLanguage(updatedUser.language_pref);
+        }
+      }
+
+      // 4. Update in all users array
+      setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+
+      // 5. Sync with local backend
+      fetch(`/api/users/${updatedUser.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedUser),
+      }).catch(() => {
+        fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedUser),
+        }).catch(() => {});
+      });
+    } catch (error) {
+      console.error('Failed to save updated profile in Firebase:', error);
+      // Fallback local update
+      if (currentUser && currentUser.id === updatedUser.id) {
+        saveRememberedUser(updatedUser);
+        setCurrentUser(updatedUser);
+      }
+      setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+    }
+  };
+
+  // Handle Game Session Completion (Persisted in Firebase)
+  const handleGameFinish = async (sessionData: Omit<GameSession, 'id' | 'completed_at'>) => {
+    setLastStars(sessionData.stars);
+    setLastGameType(sessionData.game_type);
+
+    const fullSession: GameSession = {
+      ...sessionData,
+      id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      completed_at: new Date().toISOString(),
+    };
+    saveGameSessionToFirebase(fullSession).catch(() => {});
+
+    try {
+      const res = await fetch('/api/game-sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sessionData),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.recommendation) {
+          setRecommendation(data.recommendation);
+        }
+        // Refresh trends
+        loadPatientData(sessionData.user_id);
+      }
+    } catch (err) {
+      console.warn('Logging session offline fallback', err);
+    }
+
+    setFeedbackOpen(true);
+  };
+
+  // Resolve Assigned Caregiver for currently logged-in elderly user
+  const assignedCaregiverForElderly = useMemo(() => {
+    if (!currentUser || currentUser.role !== 'elderly') return null;
+    const connId = (currentUser.connected_caregiver_id || '').trim().toUpperCase();
+    if (connId) {
+      const found = users.find(
+        (u) =>
+          u.role === 'caregiver' &&
+          (u.id.toUpperCase() === connId ||
+            (u.caregiver_code && u.caregiver_code.toUpperCase() === connId))
+      );
+      if (found) return found;
+    }
+    if (currentUser.connected_caregiver_name) {
+      const connName = currentUser.connected_caregiver_name.trim().toLowerCase();
+      const found = users.find(
+        (u) => u.role === 'caregiver' && u.name.trim().toLowerCase() === connName
+      );
+      if (found) return found;
+    }
+    return null;
+  }, [currentUser, users]);
+
+  const assignedCaregiverName =
+    assignedCaregiverForElderly?.name ||
+    currentUser?.connected_caregiver_name ||
+    currentUser?.emergency_contact?.name ||
+    'Dr. Priya Barua';
+
+  const assignedCaregiverCode =
+    assignedCaregiverForElderly?.caregiver_code ||
+    currentUser?.connected_caregiver_id ||
+    undefined;
+
+  // Trigger SOS Alert
+  const handleTriggerSOS = async () => {
+    try {
+      const res = await fetch('/api/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: currentUser.id,
+          patient_name: currentUser.name,
+          type: 'sos',
+          message: `🚨 Urgent: ${currentUser.name} pressed the SOS assistance button in ${currentUser.location || 'Assam'}. Assigned caregiver (${assignedCaregiverName}) notified.`,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAlerts((prev) => [data.alert, ...prev]);
+      }
+    } catch (err) {
+      console.warn('SOS fallback', err);
+    }
+  };
+
+  // Toggle Reminder (Persisted to Firebase)
+  const handleToggleReminder = async (reminderId: string) => {
+    const target = reminders.find((r) => r.id === reminderId);
+    if (!target) return;
+    const newStatus = !target.completed;
+
+    setReminders((prev) =>
+      prev.map((r) => (r.id === reminderId ? { ...r, completed: newStatus } : r))
+    );
+
+    // Save status in Firebase
+    toggleReminderInFirebase(reminderId, newStatus).catch(() => {});
+
+    try {
+      await fetch(`/api/reminders/${reminderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: newStatus }),
+      });
+    } catch {}
+  };
+
+  // Trigger Immediate Alarm Sound & Visual Notification
+  const handleTriggerManualAlarm = (reminder: Reminder) => {
+    setActiveAlarmReminder(reminder);
+    setIsAlarmModalOpen(true);
+  };
+
+  // Snooze Reminder from Alarm
+  const handleSnoozeReminder = async (reminderId: string, minutes: number) => {
+    const newTime = calculateSnoozeTime(minutes);
+    setReminders((prev) =>
+      prev.map((r) => (r.id === reminderId ? { ...r, time: newTime } : r))
+    );
+    try {
+      await fetch(`/api/reminders/${reminderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ time: newTime }),
+      });
+    } catch {}
+  };
+
+  // Mark Completed from Alarm
+  const handleCompleteFromAlarm = (reminderId: string) => {
+    const target = reminders.find((r) => r.id === reminderId);
+    if (target && !target.completed) {
+      handleToggleReminder(reminderId);
+    }
+  };
+
+  // Add Reminder (Caregiver - Persisted in Firebase)
+  const handleAddReminder = async (newRem: Omit<Reminder, 'id' | 'created_at' | 'completed'>) => {
+    const reminderWithId: Reminder = {
+      ...newRem,
+      id: `rem-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      created_at: new Date().toISOString(),
+      completed: false,
+    };
+
+    setReminders((prev) => [...prev, reminderWithId]);
+    saveReminderToFirebase(reminderWithId).catch(() => {});
+
+    try {
+      const res = await fetch('/api/reminders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reminderWithId),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.reminder) {
+          setReminders((prev) => prev.map((r) => (r.id === reminderWithId.id ? data.reminder : r)));
+          saveReminderToFirebase(data.reminder).catch(() => {});
+        }
+      }
+    } catch {}
+  };
+
+  // Delete Reminder (Caregiver - Deleted from Firebase)
+  const handleDeleteReminder = async (id: string) => {
+    setReminders((prev) => prev.filter((r) => r.id !== id));
+    deleteReminderFromFirebase(id).catch(() => {});
+    try {
+      await fetch(`/api/reminders/${id}`, { method: 'DELETE' });
+    } catch {}
+  };
+
+  // Resolve Alert (Caregiver)
+  const handleResolveAlert = async (id: string) => {
+    setAlerts((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, resolved: true } : a))
+    );
+    try {
+      await fetch(`/api/alerts/${id}/resolve`, { method: 'PUT' });
+    } catch {}
+  };
+
+  // Add Familiar Person (Caregiver - Persisted in Firebase)
+  const handleAddFamiliarPerson = async (person: Omit<FamiliarPerson, 'id'>) => {
+    const personWithId: FamiliarPerson = {
+      ...person,
+      id: `fam-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+    };
+    setFamiliarPeople((prev) => [...prev, personWithId]);
+    saveFamilyMemberToFirebase(personWithId).catch(() => {});
+
+    try {
+      const res = await fetch('/api/familiar-people', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(personWithId),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.person) {
+          setFamiliarPeople((prev) => prev.map((p) => (p.id === personWithId.id ? data.person : p)));
+          saveFamilyMemberToFirebase(data.person).catch(() => {});
+        }
+      }
+    } catch {}
+  };
+
+  // Delete Familiar Person
+  const handleDeleteFamiliarPerson = async (id: string) => {
+    setFamiliarPeople((prev) => prev.filter((p) => p.id !== id));
+    try {
+      await fetch(`/api/familiar-people/${id}`, { method: 'DELETE' });
+    } catch {}
+  };
+
+  // Play Next Game recommendation
+  const handlePlayNext = (nextGameType: GameType) => {
+    setFeedbackOpen(false);
+    setActiveGame(nextGameType);
+  };
+
+  const handleReturnHome = () => {
+    setFeedbackOpen(false);
+    setActiveGame(null);
+    setIsFamilyAlbumOpen(false);
+  };
+
+  // If no user is logged in, present the dedicated Login / Profile Creation Page
+  if (!currentUser) {
+    return (
+      <LoginPage
+        onLogin={handleLogin}
+        users={users}
+        onRegisterUser={handleRegisterUser}
+      />
+    );
+  }
+
+  // Determine current active patient for Caregiver view (STRICT PRIVACY: Only assigned patients)
+  const isElderly = currentUser.role === 'elderly';
+  const assignedPatients = isElderly
+    ? []
+    : users.filter((u) => {
+        if (u.role !== 'elderly') return false;
+        if (!currentUser || currentUser.role !== 'caregiver') return false;
+        const cgCode = (currentUser.caregiver_code || '').trim().toUpperCase();
+        const cgId = currentUser.id.trim().toUpperCase();
+        const conn = (u.connected_caregiver_id || '').trim().toUpperCase();
+        if (conn && (conn === cgCode || conn === cgId)) return true;
+        if (assignedPatientIds.has(u.id)) return true;
+        return false;
+      });
+
+  const currentPatientUser: User | null = isElderly
+    ? currentUser 
+    : (assignedPatients.find((u) => u.id === selectedPatientId) || assignedPatients[0] || null);
+
+  return (
+    <div className="min-h-screen flex flex-col bg-[#F8FAFC] text-[#1E293B] font-sans">
+      {/* Top Header with Portal Indicator and Logout */}
+      <Header
+        currentUser={currentUser}
+        currentLanguage={currentLanguage}
+        onLanguageChange={setCurrentLanguage}
+        onEditProfile={() => handleOpenEditProfile(currentUser)}
+        onLogout={handleLogout}
+      />
+
+      {/* Main Container */}
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 md:py-8">
+        {isElderly ? (
+          /* ELDERLY INTERFACE */
+          activeGame ? (
+            /* Active Game Screen */
+            activeGame === 'memory_match' ? (
+              <MemoryMatchGame
+                difficulty={recommendation?.recommended_difficulty || 'easy'}
+                language={currentLanguage}
+                userId={currentUser.id}
+                onFinish={handleGameFinish}
+                onBack={() => setActiveGame(null)}
+              />
+            ) : activeGame === 'sequence_recall' ? (
+              <SequenceRecallGame
+                difficulty={recommendation?.recommended_difficulty || 'easy'}
+                language={currentLanguage}
+                userId={currentUser.id}
+                onFinish={handleGameFinish}
+                onBack={() => setActiveGame(null)}
+              />
+            ) : activeGame === 'picture_recognition' ? (
+              <PictureRecognitionGame
+                difficulty={recommendation?.recommended_difficulty || 'easy'}
+                language={currentLanguage}
+                userId={currentUser.id}
+                onFinish={handleGameFinish}
+                onBack={() => setActiveGame(null)}
+              />
+            ) : activeGame === 'simple_puzzle' ? (
+              <SimplePuzzleGame
+                difficulty={recommendation?.recommended_difficulty || 'easy'}
+                language={currentLanguage}
+                userId={currentUser.id}
+                onFinish={handleGameFinish}
+                onBack={() => setActiveGame(null)}
+              />
+            ) : (
+              <FaceMatchGame
+                difficulty={recommendation?.recommended_difficulty || 'easy'}
+                language={currentLanguage}
+                userId={currentUser.id}
+                familiarPeople={familiarPeople}
+                onFinish={handleGameFinish}
+                onBack={() => setActiveGame(null)}
+              />
+            )
+          ) : isFamilyAlbumOpen ? (
+            /* Family Album View */
+            <FamiliarPeopleView
+              people={familiarPeople}
+              language={currentLanguage}
+              onBack={() => setIsFamilyAlbumOpen(false)}
+            />
+          ) : (
+            /* Elderly Home View */
+            <ElderlyHome
+              user={currentUser}
+              language={currentLanguage}
+              reminders={reminders}
+              recommendation={recommendation}
+              assignedCaregiverName={assignedCaregiverName}
+              assignedCaregiverCode={assignedCaregiverCode}
+              onSelectGame={(gt) => setActiveGame(gt)}
+              onOpenFamilyAlbum={() => setIsFamilyAlbumOpen(true)}
+              onOpenJournal={() => setIsJournalOpen(true)}
+              onOpenConnectCaregiver={() => setIsConnectCaregiverOpen(true)}
+              onEditProfile={() => handleOpenEditProfile(currentUser)}
+              onTriggerSOS={handleTriggerSOS}
+              onToggleReminder={handleToggleReminder}
+              onTriggerAlarm={handleTriggerManualAlarm}
+            />
+          )
+        ) : (
+          /* CAREGIVER DASHBOARD - Strictly accessible to Caregivers */
+          <CaregiverDashboard
+            caregiverUser={currentUser}
+            currentPatient={currentPatientUser}
+            allPatients={assignedPatients}
+            onSwitchPatient={(patientId) => {
+              setSelectedPatientId(patientId);
+              loadPatientData(patientId);
+            }}
+            onEditProfile={(target) => handleOpenEditProfile(target)}
+            onConnectPatient={handleCaregiverConnectPatient}
+            reminders={reminders}
+            alerts={alerts}
+            familiarPeople={familiarPeople}
+            recommendation={recommendation}
+            onAddReminder={handleAddReminder}
+            onDeleteReminder={handleDeleteReminder}
+            onToggleReminder={handleToggleReminder}
+            onResolveAlert={handleResolveAlert}
+            onAddFamiliarPerson={handleAddFamiliarPerson}
+            onDeleteFamiliarPerson={handleDeleteFamiliarPerson}
+            onOpenOnboarding={() => setIsOnboardingOpen(true)}
+            onOpenJournal={() => setIsJournalOpen(true)}
+            onTriggerSOS={handleTriggerSOS}
+            onTriggerAlarm={handleTriggerManualAlarm}
+            trendData={trendData}
+          />
+        )}
+      </main>
+
+      {/* Elderly Connect to Specific Caregiver ID Modal */}
+      {currentUser && isElderly && (
+        <ConnectCaregiverModal
+          elderlyUser={currentUser}
+          isOpen={isConnectCaregiverOpen}
+          language={currentLanguage}
+          onConnected={(updatedUser) => {
+            setCurrentUser(updatedUser);
+            setIsConnectCaregiverOpen(false);
+            setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+            loadPatientData(updatedUser.id);
+          }}
+        />
+      )}
+
+      {/* Edit Profile & Photo Modal */}
+      {editingTargetUser && (
+        <EditProfileModal
+          isOpen={isEditProfileOpen}
+          onClose={() => {
+            setIsEditProfileOpen(false);
+            setEditingTargetUser(null);
+          }}
+          user={editingTargetUser}
+          onSave={handleUpdateUser}
+        />
+      )}
+
+      {/* Routine Reminder Alarm & Sound Notification Modal */}
+      <ReminderNotificationModal
+        reminder={activeAlarmReminder}
+        isOpen={isAlarmModalOpen}
+        onClose={() => {
+          setIsAlarmModalOpen(false);
+          setActiveAlarmReminder(null);
+        }}
+        onComplete={handleCompleteFromAlarm}
+        onSnooze={handleSnoozeReminder}
+        language={currentLanguage}
+        patientName={currentPatientUser?.name}
+      />
+
+      {/* Tailored Onboarding Assessment (Step 2 in Flow Diagram) */}
+      {currentPatientUser && (
+        <OnboardingModal
+          isOpen={isOnboardingOpen}
+          onClose={() => setIsOnboardingOpen(false)}
+          user={currentPatientUser}
+          onSaveGoals={() => {
+            if (currentPatientUser?.id) {
+              loadPatientData(currentPatientUser.id);
+            }
+          }}
+        />
+      )}
+
+      {/* Memory Reminiscence Journal Modal */}
+      {currentPatientUser && (
+        <MemoryJournalModal
+          isOpen={isJournalOpen}
+          onClose={() => setIsJournalOpen(false)}
+          userId={currentPatientUser.id}
+          patientName={currentPatientUser.name}
+        />
+      )}
+
+      {/* Gentle Game Feedback Modal */}
+      <GameFeedbackModal
+        isOpen={feedbackOpen}
+        gameType={lastGameType}
+        stars={lastStars}
+        language={currentLanguage}
+        recommendation={recommendation}
+        onPlayNext={handlePlayNext}
+        onReturnHome={handleReturnHome}
+      />
+    </div>
+  );
+}
