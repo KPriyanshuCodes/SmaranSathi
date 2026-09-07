@@ -1,6 +1,6 @@
-# SmritiSaathi (স্মৃতিসাথী) — NER Cognitive Gaming & Memory Assistance Platform
+# SmaranSathi— NER Cognitive Gaming & Memory Assistance Platform
 
-**SmritiSaathi** ("Memory Companion") is an AI-powered cognitive gaming and memory assistance platform designed specifically for elderly dementia patients and their caregivers in India's North Eastern Region (NER).
+**SmaranSathi** ("Memory Companion") is an AI-powered cognitive gaming and memory assistance platform designed specifically for elderly dementia patients and their caregivers in India's North Eastern Region (NER).
 
 ---
 
