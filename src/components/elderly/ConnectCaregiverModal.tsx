@@ -206,7 +206,7 @@ export const ConnectCaregiverModal: React.FC<ConnectCaregiverModalProps> = ({
             <span className="font-mono text-sm tracking-wider font-black">{elderlyUser.patient_id || elderlyUser.id}</span>
           </div>
           <p className="text-gray-700 text-sm sm:text-base font-semibold max-w-md mx-auto leading-relaxed">
-            Please link your profile to your specific Caregiver ID to unlock your daily memory games, audible medicine alarms, and personal ecosystem.
+            Please link your profile to your specific Caregiver ID to unlock your daily memory games, audible medicine alarms, and personal caregiver care plan.
           </p>
 
           <button
@@ -334,7 +334,7 @@ export const ConnectCaregiverModal: React.FC<ConnectCaregiverModalProps> = ({
         <div className="p-3 bg-blue-50 rounded-2xl border border-blue-200 flex items-start gap-2.5 text-xs text-blue-900">
           <HelpCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
           <p className="leading-relaxed">
-            <span className="font-bold">Why do I need a Caregiver ID?</span> Your caregiver configures your personal family album, schedules audible medicine alerts, and receives SOS notifications if you need help.
+            <span className="font-bold">Why do I need a Caregiver ID?</span> Your caregiver configures your personal family album, schedules audible medicine alerts, and helps monitor your daily cognitive activities.
           </p>
         </div>
 

@@ -128,7 +128,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             </div>
             <div>
               <span className="text-xs font-black uppercase tracking-wider text-emerald-800">
-                Ecosystem Step 2 • Tailored Assessment
+                Personalization • Tailored Assessment
               </span>
               <h2 className="text-xl sm:text-2xl font-black text-gray-900 leading-tight">
                 User Onboarding & Care Goals

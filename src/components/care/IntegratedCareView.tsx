@@ -186,13 +186,13 @@ export const IntegratedCareView: React.FC<IntegratedCareViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Ecosystem Header */}
+      {/* Care Header */}
       <div className="bg-gradient-to-r from-teal-800 via-emerald-800 to-cyan-900 text-white rounded-3xl p-6 sm:p-7 shadow-xl border border-teal-700 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <span className="bg-teal-500/20 text-teal-200 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider border border-teal-400/30 flex items-center gap-1.5 w-fit">
               <Activity className="w-3.5 h-3.5 text-teal-300" />
-              Ecosystem Step • Integrated Care Services
+              Care Module • Integrated Care Services
             </span>
             <h2 className="text-2xl sm:text-3xl font-black text-white">
               Medication Management & Emergency Protocol
@@ -436,7 +436,7 @@ export const IntegratedCareView: React.FC<IntegratedCareViewProps> = ({
 
             {/* Emergency Contacts Recipient */}
             <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-4 space-y-1.5 text-xs">
-              <span className="font-black uppercase text-amber-900 block">Assigned Caregiver & SOS Contact:</span>
+              <span className="font-black uppercase text-amber-900 block">Assigned Caregiver Contact:</span>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <UserCheck className="w-4 h-4 text-amber-700" />

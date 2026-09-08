@@ -82,7 +82,7 @@ export const DataLakeHubView: React.FC<DataLakeHubViewProps> = ({
             <div className="flex items-center gap-2">
               <span className="bg-blue-500/20 text-blue-300 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider border border-blue-400/30 flex items-center gap-1.5">
                 <Database className="w-3.5 h-3.5 text-blue-300" />
-                Ecosystem Core • Cognitive Intelligence Engine
+                AI Engine • Cognitive Intelligence Platform
               </span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">

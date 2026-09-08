@@ -1,6 +1,8 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getFirestore, 
+  initializeFirestore,
+  getDocFromServer,
   collection, 
   doc, 
   getDoc, 
@@ -22,16 +24,56 @@ import {
   GameSession 
 } from '../types';
 
-// Initialize Firebase App & Custom Database
+// Initialize Firebase App
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-// Initialize Firestore with specific database ID from config
-export const db = getFirestore(
-  app, 
-  firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
-    ? firebaseConfig.firestoreDatabaseId 
-    : undefined
-);
+// Initialize Firestore with specific database ID and auto-detecting transport
+export const db = (() => {
+  const dbId = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
+    ? firebaseConfig.firestoreDatabaseId
+    : undefined;
+
+  try {
+    if (typeof window !== 'undefined') {
+      return initializeFirestore(app, {
+        experimentalAutoDetectLongPolling: true,
+        ignoreUndefinedProperties: true,
+      }, dbId);
+    }
+    return getFirestore(app, dbId);
+  } catch (e) {
+    // If already initialized, retrieve existing Firestore instance
+    return getFirestore(app, dbId);
+  }
+})();
+
+/**
+ * Validates Firestore connection health with offline-resilience
+ */
+export async function testConnection(): Promise<boolean> {
+  try {
+    const snap = await getDoc(doc(db, 'test', 'connection'));
+    return snap.exists();
+  } catch (error) {
+    // Graceful offline fallback
+    return false;
+  }
+}
+
+// Error handling helper for Firebase operations
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errMsg = error instanceof Error ? error.message : String(error);
+  console.warn(`Firestore [${operationType}] warning on ${path || 'unknown'}:`, errMsg);
+}
 
 // Collection References
 const USERS_COLLECTION = 'users';

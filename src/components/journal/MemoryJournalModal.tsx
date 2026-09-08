@@ -203,7 +203,7 @@ export const MemoryJournalModal: React.FC<MemoryJournalModalProps> = ({
             </div>
             <div>
               <span className="text-xs font-black uppercase tracking-wider text-amber-800">
-                Ecosystem Activity • Memory Reminiscence
+                Memory Preservation • Spoken Reminiscence
               </span>
               <h2 className="text-xl sm:text-2xl font-black text-amber-950 leading-tight">
                 {userName}&apos;s Memory Journal

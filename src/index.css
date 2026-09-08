@@ -8,12 +8,76 @@
   --theme-vivid-blue: #3E82F0;
   --theme-dark-slate: #1E293B;
   --theme-card-bg: #FAFAFA;
+  --bg-primary: #F8FAFC;
+  --text-primary: #1E293B;
+  --border-accent: #6BC1B8;
+}
+
+/* Majuli Sunset & Terracotta (Warm Earth & Eri Gold) */
+[data-theme="terracotta"] {
+  --theme-gradient: linear-gradient(to right, #FED7AA, #FDBA74, #FB923C, #EA580C);
+  --theme-mint: #FED7AA;
+  --theme-fresh-green: #FDBA74;
+  --theme-teal: #FB923C;
+  --theme-vivid-blue: #EA580C;
+  --theme-dark-slate: #431407;
+  --theme-card-bg: #FFFDF9;
+  --bg-primary: #FFFBEB;
+  --text-primary: #431407;
+  --border-accent: #FB923C;
+}
+
+/* Shillong Pine & Slate (Clinical Calm) */
+[data-theme="pine"] {
+  --theme-gradient: linear-gradient(to right, #A7F3D0, #6EE7B7, #10B981, #047857);
+  --theme-mint: #A7F3D0;
+  --theme-fresh-green: #6EE7B7;
+  --theme-teal: #10B981;
+  --theme-vivid-blue: #047857;
+  --theme-dark-slate: #064E3B;
+  --theme-card-bg: #F0FDF4;
+  --bg-primary: #F8FAFC;
+  --text-primary: #0F172A;
+  --border-accent: #10B981;
+}
+
+/* Anti-Sundowning Evening Comfort (Anti-Glutamate 590nm Warm Amber, Low Blue Light) */
+[data-theme="sundown"] {
+  --theme-gradient: linear-gradient(to right, #FDE68A, #F59E0B, #D97706, #B45309);
+  --theme-mint: #FDE68A;
+  --theme-fresh-green: #F59E0B;
+  --theme-teal: #D97706;
+  --theme-vivid-blue: #B45309;
+  --theme-dark-slate: #18181B;
+  --theme-card-bg: #27272A;
+  --bg-primary: #18181B;
+  --text-primary: #FEF3C7;
+  --border-accent: #F59E0B;
+}
+
+/* Typography Scales */
+[data-text-scale="large"] {
+  font-size: 112%;
+}
+
+[data-text-scale="xlarge"] {
+  font-size: 125%;
+}
+
+/* High Contrast Mode (WCAG AAA) */
+[data-contrast="high"] {
+  --text-primary: #000000;
+  border-width: 2px !important;
+}
+[data-contrast="high"] button {
+  border-width: 2.5px !important;
 }
 
 body {
-  color: #1E293B;
-  background-color: #F8FAFC;
+  color: var(--text-primary, #1E293B);
+  background-color: var(--bg-primary, #F8FAFC);
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Primary Gradient Utilities */
@@ -61,4 +125,18 @@ body {
   background: #F0FDF4;
   border-color: #6BC1B8;
   color: #3E82F0;
+}
+
+/* Floating SOS Button Pulse Glow Animation */
+@keyframes sos-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7), 0 4px 14px rgba(255, 59, 48, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(255, 59, 48, 0), 0 6px 22px rgba(255, 59, 48, 0.65);
+  }
+}
+
+.animate-sos-glow {
+  animation: sos-glow 2.2s infinite cubic-bezier(0.4, 0, 0.6, 1);
 }

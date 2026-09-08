@@ -26,8 +26,18 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Cognitive game level progression collection
+    match /game_progress/{progressId} {
+      allow read, write: if true;
+    }
+
     // Caregiver and elderly connections
     match /caregiver_links/{linkId} {
+      allow read, write: if true;
+    }
+
+    // Health check and connectivity validation collection
+    match /test/{docId} {
       allow read, write: if true;
     }
   }

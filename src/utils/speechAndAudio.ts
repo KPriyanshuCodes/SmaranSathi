@@ -74,8 +74,12 @@ class AudioService {
   }
 
   // Gentle chime for reminder announcement
-  playGentleChime() {
-    this.playSuccessChime();
+  playGentleChime(freq?: number) {
+    if (freq) {
+      this.playGentleTap(freq);
+    } else {
+      this.playSuccessChime();
+    }
   }
 
   // Melodic, resonant multi-tone alarm for scheduled reminders

@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Volume2, RefreshCw, ArrowLeft, Play, Sparkles } from 'lucide-react';
-import { DifficultyLevel, RegionalLanguage, GameSession } from '../../types';
+import { DifficultyLevel, RegionalLanguage, GameSession, LevelFinishResult } from '../../types';
 import { UI_TRANSLATIONS } from '../../data/nerContent';
 import { soundEffects, speakText } from '../../utils/speechAndAudio';
+import { getLevelConfig, SequenceRecallLevelConfig } from '../../data/gameLevels';
+import { GameLevelBanner } from './GameLevelBanner';
 
 interface SequenceItem {
   id: number;
@@ -49,39 +51,54 @@ const SEQUENCE_ITEMS: SequenceItem[] = [
 ];
 
 interface SequenceRecallGameProps {
-  difficulty: DifficultyLevel;
+  difficulty?: DifficultyLevel;
+  level?: number;
   language: RegionalLanguage;
   userId: string;
   onFinish: (sessionData: Omit<GameSession, 'id' | 'completed_at'>) => void;
+  onFinishLevel?: (result: LevelFinishResult) => void;
   onBack: () => void;
+  onExitToLevelSelect?: () => void;
 }
 
 export const SequenceRecallGame: React.FC<SequenceRecallGameProps> = ({
-  difficulty,
+  difficulty: propDifficulty = 'easy',
+  level = 1,
   language,
   userId,
   onFinish,
+  onFinishLevel,
   onBack,
+  onExitToLevelSelect,
 }) => {
   const t = UI_TRANSLATIONS[language] || UI_TRANSLATIONS.en;
+  const levelConfig = getLevelConfig<SequenceRecallLevelConfig>('sequence_recall', level);
+  const activeDifficulty = levelConfig.difficulty || propDifficulty;
+
   const [sequence, setSequence] = useState<number[]>([]);
   const [userStep, setUserStep] = useState<number>(0);
   const [activeItem, setActiveItem] = useState<number | null>(null);
   const [isPlayingSequence, setIsPlayingSequence] = useState<boolean>(false);
   const [round, setRound] = useState<number>(1);
-  const [totalRounds, setTotalRounds] = useState<number>(3);
+  const [totalRounds, setTotalRounds] = useState<number>(levelConfig.roundsCount || 2);
   const [attempts, setAttempts] = useState<number>(0);
   const [mistakes, setMistakes] = useState<number>(0);
   const [startTime, setStartTime] = useState<number>(Date.now());
+  const [elapsedSec, setElapsedSec] = useState<number>(0);
   const gameEndedRef = useRef(false);
 
-  const getSequenceLength = (r: number) => {
-    const base = difficulty === 'hard' ? 4 : difficulty === 'medium' ? 3 : 2;
-    return base + (r - 1);
-  };
+  // Timer ticker
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!gameEndedRef.current) {
+        setElapsedSec(Math.floor((Date.now() - startTime) / 1000));
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [startTime]);
 
   const startRound = (roundNum: number) => {
-    const length = getSequenceLength(roundNum);
+    const length = levelConfig.sequenceLength || 2;
     const newSeq: number[] = [];
     for (let i = 0; i < length; i++) {
       newSeq.push(Math.floor(Math.random() * SEQUENCE_ITEMS.length));
@@ -96,15 +113,19 @@ export const SequenceRecallGame: React.FC<SequenceRecallGameProps> = ({
     setActiveItem(null);
 
     // Initial pause before rhythm starts
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    const stepInterval = levelConfig.stepIntervalMs || 900;
+    const toneDuration = Math.min(450, Math.floor(stepInterval * 0.6));
+    const pauseDuration = Math.max(150, Math.floor(stepInterval * 0.4));
 
     for (let i = 0; i < seq.length; i++) {
       const itemIdx = seq[i];
       setActiveItem(itemIdx);
       soundEffects.playSequenceTone(itemIdx);
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      await new Promise((resolve) => setTimeout(resolve, toneDuration));
       setActiveItem(null);
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      await new Promise((resolve) => setTimeout(resolve, pauseDuration));
     }
 
     setIsPlayingSequence(false);
@@ -113,16 +134,17 @@ export const SequenceRecallGame: React.FC<SequenceRecallGameProps> = ({
   const initGame = () => {
     gameEndedRef.current = false;
     setRound(1);
-    setTotalRounds(3);
+    setTotalRounds(levelConfig.roundsCount || 2);
     setAttempts(0);
     setMistakes(0);
     setStartTime(Date.now());
+    setElapsedSec(0);
     startRound(1);
   };
 
   useEffect(() => {
     initGame();
-  }, [difficulty]);
+  }, [level, propDifficulty]);
 
   useEffect(() => {
     const prompt = `${t.sequence_recall}. ${t.sequence_recall_desc}`;
@@ -136,7 +158,8 @@ export const SequenceRecallGame: React.FC<SequenceRecallGameProps> = ({
     setActiveItem(index);
     setTimeout(() => setActiveItem(null), 250);
 
-    setAttempts((prev) => prev + 1);
+    const newAttempts = attempts + 1;
+    setAttempts(newAttempts);
 
     if (sequence[userStep] === index) {
       // Correct step
@@ -151,19 +174,22 @@ export const SequenceRecallGame: React.FC<SequenceRecallGameProps> = ({
           setTimeout(() => {
             setRound((prev) => prev + 1);
             startRound(round + 1);
-          }, 1000);
+          }, 900);
         } else {
           // Completed all rounds!
           if (!gameEndedRef.current) {
             gameEndedRef.current = true;
-            finishGame(attempts + 1, mistakes);
+            setTimeout(() => {
+              finishGame(newAttempts, mistakes);
+            }, 300);
           }
         }
       }
     } else {
-      // Gentle mistake feedback - replay sequence gently without penalty
+      // Mistake feedback
       soundEffects.playGentleEncouragement();
-      setMistakes((prev) => prev + 1);
+      const newMistakes = mistakes + 1;
+      setMistakes(newMistakes);
       setUserStep(0);
       setTimeout(() => {
         playSequence(sequence);
@@ -172,47 +198,92 @@ export const SequenceRecallGame: React.FC<SequenceRecallGameProps> = ({
   };
 
   const finishGame = (finalAttempts: number, finalMistakes: number) => {
-    const elapsedSeconds = Math.max(3, (Date.now() - startTime) / 1000);
+    const elapsedSeconds = Math.max(3, Math.round((Date.now() - startTime) / 1000));
     const avgResponseTime = Number((elapsedSeconds / Math.max(1, finalAttempts)).toFixed(1));
     const accuracy = Math.max(
-      50,
+      45,
       Math.min(100, Math.round((totalRounds / Math.max(totalRounds, totalRounds + finalMistakes)) * 100))
     );
 
-    let stars = 3;
-    if (accuracy < 75 || finalMistakes >= 3) stars = 2;
-    if (accuracy < 55) stars = 1;
+    // Win condition check
+    const won = finalMistakes <= levelConfig.maxMistakesAllowed;
+    let stars = 0;
+    if (won) {
+      if (finalMistakes === 0) {
+        stars = 3;
+      } else if (finalMistakes <= 1) {
+        stars = 2;
+      } else {
+        stars = 1;
+      }
+    }
+
+    const calculatedScore = won ? Math.round(levelConfig.pointsBase + (accuracy * 2) + Math.max(0, 100 - elapsedSeconds * 2)) : Math.round(accuracy);
+
+    if (onFinishLevel) {
+      onFinishLevel({
+        won,
+        level,
+        gameType: 'sequence_recall',
+        score: calculatedScore,
+        stars,
+        timeSec: elapsedSeconds,
+        accuracy,
+        attempts: finalAttempts,
+        mistakes: finalMistakes,
+        completionRate: 100,
+        winConditionMet: won
+          ? `Completed all ${totalRounds} rounds with ${finalMistakes} mistakes (Allowed: ≤ ${levelConfig.maxMistakesAllowed}).`
+          : undefined,
+        failReason: !won
+          ? `Made ${finalMistakes} mistakes (Maximum allowed: ${levelConfig.maxMistakesAllowed}). Listen closely to the rhythm and try again!`
+          : undefined,
+      });
+    }
 
     onFinish({
       user_id: userId,
       game_type: 'sequence_recall',
+      level_number: level,
       accuracy,
       response_time: avgResponseTime,
       attempts: finalAttempts,
       mistakes: finalMistakes,
       completion_rate: 100,
-      difficulty_level: difficulty,
-      stars,
+      difficulty_level: activeDifficulty,
+      stars: Math.max(1, stars),
     });
   };
 
   return (
-    <div className="w-full max-w-3xl mx-auto space-y-6">
+    <div className="w-full max-w-3xl mx-auto space-y-4">
+      {/* Universal Level Banner */}
+      <GameLevelBanner
+        level={level}
+        totalLevels={10}
+        difficulty={activeDifficulty}
+        levelTitle={levelConfig.title[language] || levelConfig.title.en}
+        winConditionText={levelConfig.winConditionText[language] || levelConfig.winConditionText.en}
+        onExitToLevelSelect={onExitToLevelSelect || onBack}
+        attempts={attempts}
+        timeSec={elapsedSec}
+      />
+
       {/* Header */}
-      <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-[32px] border-4 border-blue-200 shadow-[0_8px_0_0_#93C5FD]">
+      <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-[28px] border-2 border-slate-200 shadow-xs">
         <button
           onClick={onBack}
-          className="min-h-[52px] min-w-[52px] flex items-center justify-center p-3 rounded-2xl bg-orange-100 hover:bg-orange-200 text-gray-800 transition-transform active:scale-95 cursor-pointer"
+          className="min-h-[48px] min-w-[48px] flex items-center justify-center p-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition-transform active:scale-95 cursor-pointer"
         >
-          <ArrowLeft className="w-7 h-7 text-gray-900" />
+          <ArrowLeft className="w-6 h-6 text-slate-900" />
         </button>
 
         <div className="text-center">
-          <h2 className="text-2xl md:text-3xl font-black text-gray-900">
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900">
             {t.sequence_recall}
           </h2>
-          <p className="text-gray-600 font-bold text-sm md:text-base">
-            Round {round} of {totalRounds}
+          <p className="text-slate-600 font-bold text-xs sm:text-sm">
+            Round {round} of {totalRounds} · {levelConfig.sequenceLength} notes sequence
           </p>
         </div>
 
@@ -220,38 +291,38 @@ export const SequenceRecallGame: React.FC<SequenceRecallGameProps> = ({
           <button
             onClick={() => playSequence(sequence)}
             disabled={isPlayingSequence}
-            className="min-h-[52px] min-w-[52px] flex items-center justify-center p-3 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black shadow-[0_4px_0_0_#C2410C] active:translate-y-1 active:shadow-none transition-all cursor-pointer disabled:opacity-50"
+            className="min-h-[48px] min-w-[48px] flex items-center justify-center p-2.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black shadow-xs active:translate-y-0.5 transition-all cursor-pointer disabled:opacity-50"
             title="Replay sequence sound"
           >
-            <Play className="w-6 h-6 text-white" />
+            <Play className="w-5 h-5 text-white" />
           </button>
           <button
             onClick={initGame}
-            className="min-h-[52px] min-w-[52px] flex items-center justify-center p-3 rounded-2xl bg-orange-50 hover:bg-orange-100 text-gray-700 border border-orange-100 transition-transform active:scale-95 cursor-pointer"
+            className="min-h-[48px] min-w-[48px] flex items-center justify-center p-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-transform active:scale-95 cursor-pointer"
             title="Restart"
           >
-            <RefreshCw className="w-6 h-6" />
+            <RefreshCw className="w-5 h-5" />
           </button>
         </div>
       </div>
 
       {/* Guidance Banner */}
-      <div className="text-center py-3.5 px-6 rounded-2xl bg-blue-50 border-2 border-blue-200 shadow-sm">
-        <p className="text-lg md:text-xl font-black text-gray-800">
+      <div className="text-center py-3 px-6 rounded-2xl bg-blue-50 border border-blue-200 shadow-xs">
+        <p className="text-base sm:text-lg font-black text-slate-800">
           {isPlayingSequence ? (
             <span className="text-blue-900 animate-pulse flex items-center justify-center gap-2">
-              <Sparkles className="w-6 h-6 text-blue-600" /> Please watch and listen to the rhythm...
+              <Sparkles className="w-5 h-5 text-blue-600" /> Listen to the rhythm carefully...
             </span>
           ) : (
             <span className="text-emerald-800 font-black">
-              Your turn! Tap the symbols in the same order.
+              Your turn! Tap the instruments in the same order.
             </span>
           )}
         </p>
       </div>
 
       {/* Interactive Sequence Tiles (Large tap targets >= 90px) */}
-      <div className="grid grid-cols-2 gap-4 md:gap-6 max-w-xl mx-auto pt-2">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:gap-5 max-w-lg mx-auto pt-1">
         {SEQUENCE_ITEMS.map((item, idx) => {
           const isGlowing = activeItem === idx;
           const localizedName = item.label[language] || item.label.en;
@@ -262,16 +333,16 @@ export const SequenceRecallGame: React.FC<SequenceRecallGameProps> = ({
               id={`seq-item-${item.id}`}
               onClick={() => handleItemClick(idx)}
               disabled={isPlayingSequence}
-              className={`min-h-[140px] md:min-h-[160px] rounded-[28px] border-4 p-5 flex flex-col items-center justify-center gap-3 transition-all duration-200 select-none ${
+              className={`min-h-[130px] sm:min-h-[150px] rounded-[24px] border-3 p-4 flex flex-col items-center justify-center gap-2 transition-all duration-200 select-none ${
                 isGlowing 
-                  ? `${item.activeColor} shadow-[0_8px_0_0_#2563EB]` 
-                  : `${item.color} shadow-[0_8px_0_0_#CBD5E1]`
+                  ? `${item.activeColor} shadow-md` 
+                  : `${item.color} shadow-xs`
               } hover:brightness-105 active:scale-95 cursor-pointer`}
             >
-              <span className="text-5xl md:text-6xl filter drop-shadow-sm">
+              <span className="text-4xl sm:text-5xl filter drop-shadow-xs">
                 {item.icon}
               </span>
-              <span className="text-lg md:text-xl font-black text-gray-900 tracking-tight">
+              <span className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
                 {localizedName}
               </span>
             </button>
@@ -284,9 +355,9 @@ export const SequenceRecallGame: React.FC<SequenceRecallGameProps> = ({
         {sequence.map((_, i) => (
           <div
             key={i}
-            className={`w-4 h-4 rounded-full transition-all ${
+            className={`w-3.5 h-3.5 rounded-full transition-all ${
               i < userStep
-                ? 'bg-orange-500 scale-110 shadow-sm'
+                ? 'bg-orange-500 scale-110 shadow-xs'
                 : 'bg-orange-200'
             }`}
           />

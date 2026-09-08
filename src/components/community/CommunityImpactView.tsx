@@ -115,13 +115,13 @@ export const CommunityImpactView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Ecosystem Header */}
+      {/* Community Header */}
       <div className="bg-gradient-to-r from-purple-900 via-violet-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-7 shadow-xl border border-purple-800 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <span className="bg-purple-500/20 text-purple-200 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider border border-purple-400/30 flex items-center gap-1.5 w-fit">
               <Users className="w-3.5 h-3.5 text-purple-300" />
-              Ecosystem Step • Community & Systemic Change
+              Community • Collective Support & Research
             </span>
             <h2 className="text-2xl sm:text-3xl font-black text-white">
               Long-Term Impact & Community

@@ -8,9 +8,11 @@ import {
   Alert, 
   FamiliarPerson, 
   AIRecommendation, 
-  GameSession 
+  GameSession,
+  LevelFinishResult
 } from './types';
 import { Header } from './components/common/Header';
+import { FloatingSOSButton } from './components/common/FloatingSOSButton';
 import { ElderlyHome } from './components/elderly/ElderlyHome';
 import { FamiliarPeopleView } from './components/elderly/FamiliarPeopleView';
 import { CaregiverDashboard } from './components/caregiver/CaregiverDashboard';
@@ -19,6 +21,8 @@ import { SequenceRecallGame } from './components/games/SequenceRecallGame';
 import { PictureRecognitionGame } from './components/games/PictureRecognitionGame';
 import { SimplePuzzleGame } from './components/games/SimplePuzzleGame';
 import { FaceMatchGame } from './components/games/FaceMatchGame';
+import { GameLevelSelectScreen } from './components/games/GameLevelSelectScreen';
+import { LevelCompleteModal } from './components/games/LevelCompleteModal';
 import { GameFeedbackModal } from './components/games/GameFeedbackModal';
 import { LoginPage } from './components/auth/LoginPage';
 import { FAMILIAR_PEOPLE_SEED } from './data/nerContent';
@@ -28,6 +32,7 @@ import { ReminderNotificationModal } from './components/reminders/ReminderNotifi
 import { ConnectCaregiverModal } from './components/elderly/ConnectCaregiverModal';
 import { EditProfileModal } from './components/profile/EditProfileModal';
 import { isReminderDue, getTriggerKey, calculateSnoozeTime } from './utils/reminderScheduler';
+import { recordLevelCompletion } from './utils/gameProgress';
 import { 
   getAllUsersFromFirebase, 
   saveUserToFirebase,
@@ -58,6 +63,9 @@ export default function App() {
   const [assignedPatientIds, setAssignedPatientIds] = useState<Set<string>>(new Set());
   const [currentLanguage, setCurrentLanguage] = useState<RegionalLanguage>('as');
   const [activeGame, setActiveGame] = useState<GameType | null>(null);
+  const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
+  const [levelFinishResult, setLevelFinishResult] = useState<LevelFinishResult | null>(null);
+  const [isLevelCompleteModalOpen, setIsLevelCompleteModalOpen] = useState<boolean>(false);
   const [isFamilyAlbumOpen, setIsFamilyAlbumOpen] = useState<boolean>(false);
   const [isJournalOpen, setIsJournalOpen] = useState<boolean>(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(false);
@@ -183,11 +191,13 @@ export default function App() {
         setRecommendation({
           recommended_difficulty: 'easy',
           next_game_type: 'memory_match',
-          engagement_score: 75,
-          rationale: 'Initial welcoming session: starting with culturally resonant memory cards at gentle difficulty.',
-          observation_note: 'Baseline assessment underway. Patient is encouraged to explore games without time constraints.',
+          engagement_score: 0,
+          has_gaming_data: false,
+          total_games_analyzed: 0,
+          rationale: 'Awaiting initial game session: scores will be generated from actual patient gameplay.',
+          observation_note: 'No gaming scores recorded yet. The patient is encouraged to play their first activity.',
           ethical_disclaimer: 'This is a cognitive engagement tool, not a medical diagnosis.',
-          recent_trend: 'stable'
+          recent_trend: 'insufficient_data'
         });
       }
 
@@ -498,7 +508,18 @@ export default function App() {
       console.warn('Logging session offline fallback', err);
     }
 
-    setFeedbackOpen(true);
+    if (!selectedLevel) {
+      setFeedbackOpen(true);
+    }
+  };
+
+  // Handle Level Completion (Unlocks next level, records stars, best score, and syncs)
+  const handleLevelFinish = async (result: LevelFinishResult) => {
+    if (currentUser) {
+      await recordLevelCompletion(currentUser.id, result);
+    }
+    setLevelFinishResult(result);
+    setIsLevelCompleteModalOpen(true);
   };
 
   // Resolve Assigned Caregiver for currently logged-in elderly user
@@ -535,8 +556,9 @@ export default function App() {
     currentUser?.connected_caregiver_id ||
     undefined;
 
-  // Trigger SOS Alert
+  // Trigger SOS Alert (internal backend & state update)
   const handleTriggerSOS = async () => {
+    if (!currentUser) return;
     try {
       const res = await fetch('/api/alerts', {
         method: 'POST',
@@ -554,6 +576,33 @@ export default function App() {
       }
     } catch (err) {
       console.warn('SOS fallback', err);
+    }
+  };
+
+  /**
+   * Dedicated triggerSOS function called on confirmation from FloatingSOSButton.
+   * [USER PLACEHOLDER]: Implement custom emergency location dispatch or SMS/telephony backend hooks here.
+   */
+  const triggerSOS = async () => {
+    console.log('🚨 triggerSOS() executed: Dispatching emergency notification...');
+
+    // =========================================================================
+    // [USER IMPLEMENTATION PLACEHOLDER]
+    // Hook up external location APIs (e.g. navigator.geolocation) or emergency
+    // contact SMS/telephony endpoints here:
+    //
+    // Example:
+    // if ('geolocation' in navigator) {
+    //   navigator.geolocation.getCurrentPosition(
+    //     (pos) => console.log('Location coords:', pos.coords.latitude, pos.coords.longitude),
+    //     (err) => console.warn('Geolocation warning:', err)
+    //   );
+    // }
+    // =========================================================================
+
+    // If a user profile is active, also trigger the application's internal alert system
+    if (currentUser) {
+      await handleTriggerSOS();
     }
   };
 
@@ -732,13 +781,16 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F8FAFC] text-[#1E293B] font-sans">
-      {/* Top Header with Portal Indicator and Logout */}
+      {/* Top Header with Brand, Center Emergency SOS Button, Regional Language Selector, and User Profile */}
       <Header
         currentUser={currentUser}
         currentLanguage={currentLanguage}
         onLanguageChange={setCurrentLanguage}
         onEditProfile={() => handleOpenEditProfile(currentUser)}
         onLogout={handleLogout}
+        onTriggerSOS={triggerSOS}
+        patientName={currentPatientUser?.name || currentUser.name}
+        contactName={assignedCaregiverName}
       />
 
       {/* Main Container */}
@@ -746,47 +798,73 @@ export default function App() {
         {isElderly ? (
           /* ELDERLY INTERFACE */
           activeGame ? (
-            /* Active Game Screen */
-            activeGame === 'memory_match' ? (
+            /* Active Game Flow: Either Level Selection Screen or Active Level Gameplay */
+            selectedLevel === null ? (
+              <GameLevelSelectScreen
+                userId={currentUser.id}
+                gameType={activeGame}
+                language={currentLanguage}
+                onSelectLevel={(lvl) => setSelectedLevel(lvl)}
+                onBack={() => {
+                  setActiveGame(null);
+                  setSelectedLevel(null);
+                }}
+              />
+            ) : activeGame === 'memory_match' ? (
               <MemoryMatchGame
+                level={selectedLevel}
                 difficulty={recommendation?.recommended_difficulty || 'easy'}
                 language={currentLanguage}
                 userId={currentUser.id}
                 onFinish={handleGameFinish}
-                onBack={() => setActiveGame(null)}
+                onFinishLevel={handleLevelFinish}
+                onExitToLevelSelect={() => setSelectedLevel(null)}
+                onBack={() => setSelectedLevel(null)}
               />
             ) : activeGame === 'sequence_recall' ? (
               <SequenceRecallGame
+                level={selectedLevel}
                 difficulty={recommendation?.recommended_difficulty || 'easy'}
                 language={currentLanguage}
                 userId={currentUser.id}
                 onFinish={handleGameFinish}
-                onBack={() => setActiveGame(null)}
+                onFinishLevel={handleLevelFinish}
+                onExitToLevelSelect={() => setSelectedLevel(null)}
+                onBack={() => setSelectedLevel(null)}
               />
             ) : activeGame === 'picture_recognition' ? (
               <PictureRecognitionGame
+                level={selectedLevel}
                 difficulty={recommendation?.recommended_difficulty || 'easy'}
                 language={currentLanguage}
                 userId={currentUser.id}
                 onFinish={handleGameFinish}
-                onBack={() => setActiveGame(null)}
+                onFinishLevel={handleLevelFinish}
+                onExitToLevelSelect={() => setSelectedLevel(null)}
+                onBack={() => setSelectedLevel(null)}
               />
             ) : activeGame === 'simple_puzzle' ? (
               <SimplePuzzleGame
+                level={selectedLevel}
                 difficulty={recommendation?.recommended_difficulty || 'easy'}
                 language={currentLanguage}
                 userId={currentUser.id}
                 onFinish={handleGameFinish}
-                onBack={() => setActiveGame(null)}
+                onFinishLevel={handleLevelFinish}
+                onExitToLevelSelect={() => setSelectedLevel(null)}
+                onBack={() => setSelectedLevel(null)}
               />
             ) : (
               <FaceMatchGame
+                level={selectedLevel}
                 difficulty={recommendation?.recommended_difficulty || 'easy'}
                 language={currentLanguage}
                 userId={currentUser.id}
                 familiarPeople={familiarPeople}
                 onFinish={handleGameFinish}
-                onBack={() => setActiveGame(null)}
+                onFinishLevel={handleLevelFinish}
+                onExitToLevelSelect={() => setSelectedLevel(null)}
+                onBack={() => setSelectedLevel(null)}
               />
             )
           ) : isFamilyAlbumOpen ? (
@@ -805,7 +883,10 @@ export default function App() {
               recommendation={recommendation}
               assignedCaregiverName={assignedCaregiverName}
               assignedCaregiverCode={assignedCaregiverCode}
-              onSelectGame={(gt) => setActiveGame(gt)}
+              onSelectGame={(gt) => {
+                setActiveGame(gt);
+                setSelectedLevel(null);
+              }}
               onOpenFamilyAlbum={() => setIsFamilyAlbumOpen(true)}
               onOpenJournal={() => setIsJournalOpen(true)}
               onOpenConnectCaregiver={() => setIsConnectCaregiverOpen(true)}
@@ -912,6 +993,30 @@ export default function App() {
         />
       )}
 
+      {/* Level Completion / Level Result Modal */}
+      {isLevelCompleteModalOpen && levelFinishResult && (
+        <LevelCompleteModal
+          result={levelFinishResult}
+          language={currentLanguage}
+          isOpen={isLevelCompleteModalOpen}
+          onNextLevel={() => {
+            setIsLevelCompleteModalOpen(false);
+            const nextLvl = Math.min(10, levelFinishResult.level + 1);
+            setSelectedLevel(nextLvl);
+          }}
+          onReplayLevel={() => {
+            setIsLevelCompleteModalOpen(false);
+            const curr = levelFinishResult.level;
+            setSelectedLevel(null);
+            setTimeout(() => setSelectedLevel(curr), 50);
+          }}
+          onExitToLevelSelect={() => {
+            setIsLevelCompleteModalOpen(false);
+            setSelectedLevel(null);
+          }}
+        />
+      )}
+
       {/* Gentle Game Feedback Modal */}
       <GameFeedbackModal
         isOpen={feedbackOpen}
@@ -921,6 +1026,13 @@ export default function App() {
         recommendation={recommendation}
         onPlayNext={handlePlayNext}
         onReturnHome={handleReturnHome}
+      />
+
+      {/* Floating Emergency SOS Button - Positioned in lower right corner away from header */}
+      <FloatingSOSButton
+        onTriggerSOS={triggerSOS}
+        patientName={currentPatientUser?.name || currentUser.name}
+        contactName={assignedCaregiverName}
       />
     </div>
   );

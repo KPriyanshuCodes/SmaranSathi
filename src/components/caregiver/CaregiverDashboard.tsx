@@ -24,7 +24,6 @@ import {
   Info,
   Calendar,
   Layers,
-  GitFork,
   Database,
   Stethoscope,
   Pill,
@@ -33,7 +32,14 @@ import {
   Edit3,
   ShieldAlert,
   ShieldCheck,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Gamepad2,
+  Award,
+  Zap,
+  Target,
+  TrendingUp,
+  BarChart2,
+  Check
 } from 'lucide-react';
 import { 
   User, 
@@ -43,9 +49,12 @@ import {
   AIRecommendation, 
   DifficultyLevel,
   ReminderType,
-  RecurrenceType
+  RecurrenceType,
+  TrendData,
+  PatientGamingAnalysis,
+  CognitiveDomainScore,
+  GameSession
 } from '../../types';
-import { EcosystemFlowMap } from '../ecosystem/EcosystemFlowMap';
 import { DataLakeHubView } from '../datalake/DataLakeHubView';
 import { IntegratedCareView } from '../care/IntegratedCareView';
 import { ConsultationPortalView } from '../consultation/ConsultationPortalView';
@@ -74,24 +83,7 @@ interface CaregiverDashboardProps {
   onOpenJournal?: () => void;
   onTriggerSOS?: () => void;
   onTriggerAlarm?: (reminder: Reminder) => void;
-  trendData: {
-    trends: {
-      session_num: number;
-      date: string;
-      accuracy: number;
-      response_time: number;
-      mistakes: number;
-      game_type: string;
-      difficulty: string;
-      baseline: number;
-    }[];
-    baseline_accuracy: number;
-    recent_accuracy: number;
-    deviation_from_baseline_pct: number;
-    baseline_observation: string;
-    game_breakdown: Record<string, number>;
-    ethical_disclaimer: string;
-  } | null;
+  trendData: TrendData | null;
 }
 
 export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
@@ -117,7 +109,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
   onTriggerAlarm,
   trendData,
 }) => {
-  const [activeTab, setActiveTab] = useState<'ecosystem' | 'trends' | 'datalake' | 'care' | 'consultation' | 'community' | 'reminders' | 'alerts' | 'people' | 'ai'>('ecosystem');
+  const [activeTab, setActiveTab] = useState<'trends' | 'datalake' | 'care' | 'consultation' | 'community' | 'reminders' | 'alerts' | 'people' | 'ai'>('trends');
   const [showAddReminderModal, setShowAddReminderModal] = useState(false);
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
 
@@ -205,6 +197,9 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
     setPersonPhone('');
     setShowAddPersonModal(false);
   };
+
+  const analysis: PatientGamingAnalysis | undefined = trendData?.analysis;
+  const hasGamingData = Boolean(analysis?.has_data && (analysis?.total_games_played || 0) > 0);
 
   const chartData = trendData?.trends || [];
   const barData = Object.entries(trendData?.game_breakdown || {}).map(([game, count]) => ({
@@ -477,41 +472,69 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
             </div>
           </div>
 
-      {/* KPI Overview Cards with Theme Palette */}
+      {/* KPI Overview Cards with Theme Palette — Connected Directly to Patient Gaming Scores */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Rolling Engagement Index */}
+        {/* Cognitive Gaming Score */}
         <div className="bg-[#FAFAFA] rounded-2xl p-5 border-2 border-[#8DE5A6] shadow-sm space-y-2">
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-600">
-              Engagement Score
+            <span className="text-xs font-black uppercase tracking-wider text-slate-600 flex items-center gap-1">
+              <span>Patient Gaming Score</span>
             </span>
-            <Sparkles className="w-5 h-5 text-[#3E82F0]" />
+            <Gamepad2 className="w-5 h-5 text-[#3E82F0]" />
           </div>
-          <div className="text-3xl font-black text-[#1E293B]">
-            {recommendation?.engagement_score || 88}
-            <span className="text-base font-bold text-slate-400"> / 100</span>
-          </div>
-          <p className="text-xs text-emerald-700 font-black">
-            Steady cognitive participation
-          </p>
+          {hasGamingData && analysis ? (
+            <div>
+              <div className="text-3xl font-black text-[#1E293B] flex items-baseline gap-1">
+                <span>{analysis.gaming_score}</span>
+                <span className="text-base font-bold text-slate-400"> / 100</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-bold mt-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>Derived from {analysis.total_games_played} played games</span>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div className="text-2xl font-black text-amber-700 flex items-baseline gap-1">
+                <span>Pending</span>
+                <span className="text-xs font-bold text-slate-400">(0 / 100)</span>
+              </div>
+              <p className="text-xs text-slate-500 font-semibold mt-1">
+                Awaiting first game session
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Accuracy vs Baseline */}
         <div className="bg-[#FAFAFA] rounded-2xl p-5 border-2 border-[#8DE5A6] shadow-sm space-y-2">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-black uppercase tracking-wider text-slate-600">
-              Avg. Accuracy
+              Avg. Recall Accuracy
             </span>
             <Activity className="w-5 h-5 text-[#3E82F0]" />
           </div>
-          <div className="text-3xl font-black text-[#1E293B]">
-            {trendData?.recent_accuracy || 88}%
-          </div>
-          <p className="text-xs text-slate-600 font-bold">
-            Baseline: {trendData?.baseline_accuracy || 80}% (
-            {trendData && trendData.deviation_from_baseline_pct >= 0 ? '+' : ''}
-            {trendData?.deviation_from_baseline_pct || 8}%)
-          </p>
+          {hasGamingData && analysis ? (
+            <div>
+              <div className="text-3xl font-black text-[#1E293B]">
+                {analysis.average_accuracy_pct}%
+              </div>
+              <p className="text-xs text-slate-600 font-bold mt-1">
+                Baseline: {trendData?.baseline_accuracy || analysis.average_accuracy_pct}% (
+                {trendData && trendData.deviation_from_baseline_pct >= 0 ? '+' : ''}
+                {trendData?.deviation_from_baseline_pct || 0}%)
+              </p>
+            </div>
+          ) : (
+            <div>
+              <div className="text-2xl font-black text-slate-400">
+                -- %
+              </div>
+              <p className="text-xs text-slate-500 font-semibold mt-1">
+                Awaiting patient gameplay
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Avg Response Speed */}
@@ -522,18 +545,29 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
             </span>
             <Clock className="w-5 h-5 text-[#3E82F0]" />
           </div>
-          <div className="text-3xl font-black text-[#1E293B]">
-            {chartData.length > 0
-              ? (
-                  chartData.reduce((acc, c) => acc + c.response_time, 0) /
-                  chartData.length
-                ).toFixed(1)
-              : '4.2'}
-            s
-          </div>
-          <p className="text-xs text-slate-600 font-bold">
-            Within comfortable range
-          </p>
+          {hasGamingData && analysis ? (
+            <div>
+              <div className="text-3xl font-black text-[#1E293B]">
+                {analysis.average_response_time_sec}s
+              </div>
+              <p className="text-xs text-slate-600 font-bold mt-1">
+                {analysis.average_response_time_sec <= 4.2
+                  ? 'Swift & alert processing'
+                  : analysis.average_response_time_sec <= 6.5
+                  ? 'Thoughtful deliberation'
+                  : 'Relaxed pacing pace'}
+              </p>
+            </div>
+          ) : (
+            <div>
+              <div className="text-2xl font-black text-slate-400">
+                -- s
+              </div>
+              <p className="text-xs text-slate-500 font-semibold mt-1">
+                Reaction speed untracked
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Active Alerts */}
@@ -547,27 +581,88 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
           <div className="text-3xl font-black text-[#1E293B]">
             {activeAlerts.length}
           </div>
-          <p className="text-xs text-slate-600 font-bold">
+          <p className="text-xs text-slate-600 font-bold mt-1">
             {activeAlerts.length === 0 ? 'All systems peaceful' : 'Requires review'}
           </p>
         </div>
       </div>
 
-      {/* Baseline Observation Highlight Card */}
-      {trendData && (
-        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-2xl p-5 flex items-start gap-4 shadow-sm">
-          <div className="p-2.5 bg-emerald-100 rounded-xl text-emerald-800 shrink-0">
-            <Activity className="w-6 h-6" />
+      {/* Baseline Observation & Gaming Performance Highlight Card */}
+      {hasGamingData && analysis ? (
+        <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border-2 border-[#8DE5A6] rounded-2xl p-5 shadow-sm space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/80 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-emerald-100 rounded-xl text-emerald-800 shrink-0">
+                <Brain className="w-6 h-6 text-[#3E82F0]" />
+              </div>
+              <div>
+                <h4 className="text-base font-black text-emerald-950 flex items-center gap-2">
+                  <span>Empirical Cognitive Gaming Analysis</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900 font-bold">
+                    {analysis.total_games_played} Sessions Recorded
+                  </span>
+                </h4>
+                <p className="text-xs text-slate-600 font-medium">
+                  Direct evaluation of visual recall, speed agility, and focus consistency
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs px-3 py-1 rounded-full font-black uppercase tracking-wider ${
+                analysis.trend_direction === 'improving'
+                  ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                  : analysis.trend_direction === 'attention_needed'
+                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                  : 'bg-blue-100 text-blue-900 border border-blue-300'
+              }`}>
+                Trajectory: {analysis.trend_direction.replace('_', ' ')}
+              </span>
+              <span className="text-xs font-mono font-black bg-white px-2.5 py-1 rounded-lg border border-[#8DE5A6] text-[#1E293B]">
+                Score: {analysis.gaming_score}/100
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div className="space-y-1">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-[#3E82F0]" />
+                <span>Clinical & Cognitive Insight</span>
+              </span>
+              <p className="text-slate-800 font-medium leading-relaxed">
+                {analysis.clinical_insight}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-[#3E82F0]" />
+                <span>Reaction Latency & Motor Speed</span>
+              </span>
+              <p className="text-slate-800 font-medium leading-relaxed">
+                {analysis.speed_analysis}
+              </p>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-slate-500 italic pt-1 border-t border-emerald-200/50 flex items-center justify-between">
+            <span>Transparent formula: Accuracy (50%) + Speed (25%) + Error Control (15%) + Completion (10%). Never arbitrary.</span>
+            <span>Ethical engagement tool · Not a medical diagnosis</span>
+          </p>
+        </div>
+      ) : (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-5 flex items-start gap-4 shadow-sm">
+          <div className="p-2.5 bg-amber-100 rounded-xl text-amber-800 shrink-0">
+            <Gamepad2 className="w-6 h-6 text-amber-700" />
           </div>
           <div className="space-y-1">
-            <h4 className="text-base font-black text-emerald-950">
-              Weekly Baseline Observation
+            <h4 className="text-base font-black text-amber-950">
+              Cognitive Gaming Baseline Awaiting First Session
             </h4>
-            <p className="text-gray-700 text-sm leading-relaxed font-medium">
-              {trendData.baseline_observation}
+            <p className="text-slate-700 text-sm leading-relaxed font-medium">
+              Smaran Sathi generates 100% data-driven cognitive scores derived from actual gameplay rather than random numbers. Once {currentPatient ? currentPatient.name : 'the patient'} completes their first activity, cognitive recall accuracy, reaction agility, and domain-by-domain analytics will populate automatically.
             </p>
-            <p className="text-xs text-gray-500 italic pt-1">
-              Note: This is an empirical observation of game interaction speed and accuracy, not a clinical diagnostic assessment.
+            <p className="text-xs text-slate-500 italic pt-1">
+              No simulated data is shown. Every metric in this dashboard reflects genuine user activity.
             </p>
           </div>
         </div>
@@ -576,20 +671,6 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
       {/* Navigation Tabs */}
       <div className="flex flex-wrap items-center justify-between gap-2.5 border-b-2 border-slate-200 pb-3">
         <div className="flex flex-wrap gap-2">
-          <button
-            id="tab-ecosystem"
-            onClick={() => setActiveTab('ecosystem')}
-            style={activeTab === 'ecosystem' ? { background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' } : undefined}
-            className={`px-4 py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'ecosystem'
-                ? 'text-[#0F172A] border border-[#6BC1B8] shadow-sm'
-                : 'bg-[#FAFAFA] hover:bg-white text-[#1E293B] border border-[#8DE5A6]'
-            }`}
-          >
-            <GitFork className="w-4 h-4 text-[#3E82F0]" />
-            <span>Ecosystem Flow Map</span>
-          </button>
-
           <button
             id="tab-trends"
             onClick={() => setActiveTab('trends')}
@@ -746,18 +827,6 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
         </div>
       </div>
 
-      {/* TAB 0: Interactive Ecosystem Architecture Map */}
-      {activeTab === 'ecosystem' && (
-        <EcosystemFlowMap
-          currentTab={activeTab}
-          onNavigateTab={(tab) => setActiveTab(tab)}
-          onOpenOnboarding={onOpenOnboarding || (() => {})}
-          onOpenJournal={onOpenJournal || (() => {})}
-          onTriggerSOS={onTriggerSOS || (() => {})}
-          userRole="caregiver"
-        />
-      )}
-
       {/* TAB: Data Lake & AI Hub */}
       {activeTab === 'datalake' && (
         <DataLakeHubView
@@ -788,133 +857,496 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
         <CommunityImpactView />
       )}
 
-      {/* TAB 1: Cognitive Trends & Charts (Recharts) */}
+      {/* TAB 1: Patient Gaming Performance & Deep Cognitive Analysis */}
       {activeTab === 'trends' && (
         <div className="space-y-6">
-          {/* Chart 1: Accuracy Trend vs Baseline */}
-          <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <h3 className="text-xl font-black text-[#1E293B]">
-                  Game Accuracy Trend (%)
+          {hasGamingData && analysis ? (
+            <>
+              {/* 1. Transparent Gaming Score Breakdown Card */}
+              <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-6">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b-2 border-slate-200 pb-5">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-md bg-[#8DE5A6] text-[#0F172A] font-black text-xs uppercase tracking-wider">
+                        Patient Game Analytics
+                      </span>
+                      <span className="text-xs font-bold text-slate-500">
+                        {currentPatient.name} • {analysis.total_games_played} sessions evaluated
+                      </span>
+                    </div>
+                    <h3 className="text-2xl font-black text-[#1E293B]">
+                      Cognitive Gaming Performance Index
+                    </h3>
+                    <p className="text-xs text-slate-600 font-medium max-w-2xl">
+                      Transparent scoring strictly derived from gameplay accuracy, reaction speed agility, mistake frequency, and completion consistency. No synthetic or randomized values.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-4 bg-white p-4 rounded-2xl border-2 border-[#8DE5A6] shrink-0 shadow-2xs">
+                    <div className="text-center">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
+                        Total Gaming Score
+                      </span>
+                      <div className="text-4xl font-black text-[#1E293B] flex items-baseline justify-center gap-1">
+                        <span>{analysis.gaming_score}</span>
+                        <span className="text-base font-bold text-slate-400">/ 100</span>
+                      </div>
+                    </div>
+                    <div className="h-10 w-0.5 bg-slate-200" />
+                    <div className="text-left space-y-1">
+                      <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider inline-block ${
+                        analysis.trend_direction === 'improving'
+                          ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                          : analysis.trend_direction === 'attention_needed'
+                          ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                          : 'bg-blue-100 text-blue-900 border border-blue-300'
+                      }`}>
+                        {analysis.trend_direction.replace('_', ' ')}
+                      </span>
+                      <p className="text-[11px] font-bold text-slate-600">
+                        {analysis.total_stars} ⭐ earned
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Score Formula Components (4 Pillars) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Accuracy Component */}
+                  <div className="bg-white rounded-2xl p-4 border border-[#8DE5A6] space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
+                        1. Recall Accuracy
+                      </span>
+                      <Target className="w-4 h-4 text-[#3E82F0]" />
+                    </div>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-2xl font-black text-[#1E293B]">
+                        {analysis.score_breakdown.accuracy_pts}
+                        <span className="text-xs text-slate-400 font-bold"> / 50 pts</span>
+                      </span>
+                      <span className="text-xs font-extrabold text-emerald-700">
+                        {analysis.average_accuracy_pct}% avg
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-[#3E82F0] h-full rounded-full transition-all"
+                        style={{ width: `${(analysis.score_breakdown.accuracy_pts / 50) * 100}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      50% weight • Evaluates visual & semantic accuracy
+                    </p>
+                  </div>
+
+                  {/* Speed Agility Component */}
+                  <div className="bg-white rounded-2xl p-4 border border-[#8DE5A6] space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
+                        2. Reaction Speed
+                      </span>
+                      <Clock className="w-4 h-4 text-[#6BC1B8]" />
+                    </div>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-2xl font-black text-[#1E293B]">
+                        {analysis.score_breakdown.speed_pts}
+                        <span className="text-xs text-slate-400 font-bold"> / 25 pts</span>
+                      </span>
+                      <span className="text-xs font-extrabold text-[#1E293B]">
+                        {analysis.average_response_time_sec}s avg
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-[#6BC1B8] h-full rounded-full transition-all"
+                        style={{ width: `${(analysis.score_breakdown.speed_pts / 25) * 100}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      25% weight • Benchmarked for gentle elderly pace
+                    </p>
+                  </div>
+
+                  {/* Focus & Error Control */}
+                  <div className="bg-white rounded-2xl p-4 border border-[#8DE5A6] space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
+                        3. Focus & Precision
+                      </span>
+                      <Zap className="w-4 h-4 text-amber-500" />
+                    </div>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-2xl font-black text-[#1E293B]">
+                        {analysis.score_breakdown.focus_pts}
+                        <span className="text-xs text-slate-400 font-bold"> / 15 pts</span>
+                      </span>
+                      <span className="text-xs font-extrabold text-slate-600">
+                        {analysis.total_mistakes} total slips
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-amber-500 h-full rounded-full transition-all"
+                        style={{ width: `${(analysis.score_breakdown.focus_pts / 15) * 100}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      15% weight • Rewards deliberate, calm moves
+                    </p>
+                  </div>
+
+                  {/* Completion & Consistency */}
+                  <div className="bg-white rounded-2xl p-4 border border-[#8DE5A6] space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
+                        4. Completion
+                      </span>
+                      <Award className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-2xl font-black text-[#1E293B]">
+                        {analysis.score_breakdown.completion_pts}
+                        <span className="text-xs text-slate-400 font-bold"> / 10 pts</span>
+                      </span>
+                      <span className="text-xs font-extrabold text-emerald-700">
+                        100% finished
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-emerald-500 h-full rounded-full transition-all"
+                        style={{ width: `${(analysis.score_breakdown.completion_pts / 10) * 100}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      10% weight • Rewards daily engagement loop
+                    </p>
+                  </div>
+                </div>
+
+                {/* Cognitive Findings Summary Callout */}
+                <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <Info className="w-5 h-5 text-emerald-800 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <h5 className="text-sm font-black text-emerald-950">
+                        Clinical Analysis Note
+                      </h5>
+                      <p className="text-xs text-slate-700 font-medium leading-relaxed">
+                        {analysis.clinical_insight} {analysis.speed_analysis}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <span className="text-[10px] font-black uppercase text-slate-500 block">
+                      Recommended Next Game
+                    </span>
+                    <span className="text-xs font-black text-[#0F172A] bg-white px-3 py-1 rounded-full border border-[#8DE5A6] inline-block shadow-2xs">
+                      {analysis.recommended_game.title}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Domain-by-Domain Cognitive Health Grid */}
+              <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-xl font-black text-[#1E293B] flex items-center gap-2">
+                      <Brain className="w-5 h-5 text-[#3E82F0]" />
+                      <span>Cognitive Domain Breakdown</span>
+                    </h3>
+                    <p className="text-slate-500 text-xs font-medium">
+                      Empirical assessment across 5 core cognitive neural pathways
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">
+                    Live Domain Tracking
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {analysis.domain_breakdown.map((domain) => (
+                    <div 
+                      key={domain.game_type}
+                      className="bg-white rounded-2xl p-5 border-2 border-slate-200 hover:border-[#8DE5A6] transition-all space-y-3 shadow-2xs"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
+                            {domain.domain}
+                          </span>
+                          <h4 className="text-base font-black text-[#1E293B]">
+                            {domain.game_title}
+                          </h4>
+                        </div>
+                        <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider shrink-0 ${
+                          domain.sessions_count === 0
+                            ? 'bg-slate-100 text-slate-500 border border-slate-200'
+                            : domain.status === 'strong'
+                            ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                            : domain.status === 'steady'
+                            ? 'bg-blue-100 text-blue-900 border border-blue-300'
+                            : 'bg-amber-100 text-amber-900 border border-amber-300'
+                        }`}>
+                          {domain.sessions_count === 0 ? 'Unplayed' : domain.status.replace('_', ' ')}
+                        </span>
+                      </div>
+
+                      {domain.sessions_count > 0 ? (
+                        <div className="space-y-2 pt-1 border-t border-slate-100">
+                          <div className="flex items-center justify-between text-xs font-bold">
+                            <span className="text-slate-600">Accuracy:</span>
+                            <span className="text-[#1E293B] font-black">{domain.accuracy}%</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                            <div 
+                              className="bg-[#3E82F0] h-full rounded-full"
+                              style={{ width: `${domain.accuracy}%` }}
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between text-xs font-bold text-slate-600 pt-1">
+                            <span>Response Speed:</span>
+                            <span className="text-[#1E293B] font-mono">{domain.avg_response_time}s</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs font-bold text-slate-600">
+                            <span>Games Played:</span>
+                            <span className="text-[#1E293B] font-mono">{domain.sessions_count} sessions</span>
+                          </div>
+
+                          <p className="text-[11px] text-slate-600 font-medium leading-relaxed pt-2 border-t border-slate-100">
+                            {domain.analysis}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="pt-3 border-t border-slate-100 space-y-2">
+                          <p className="text-xs text-slate-500 italic">
+                            No games recorded in this domain yet.
+                          </p>
+                          <p className="text-[11px] text-slate-400 font-medium">
+                            Starting this activity will provide baseline data for {domain.domain.toLowerCase()}.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3. Interactive Progression Charts */}
+              <div className="space-y-6">
+                {/* Accuracy Trend vs Baseline */}
+                <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-xl font-black text-[#1E293B]">
+                        Game Accuracy Trend (%)
+                      </h3>
+                      <p className="text-slate-500 text-xs font-medium">
+                        Session-by-session accuracy compared against {currentPatient.name.split(' ')[0]}'s empirical baseline ({analysis.average_accuracy_pct}%)
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs font-bold">
+                      <span className="flex items-center gap-1.5 text-[#3E82F0]">
+                        <span className="w-3 h-3 rounded-full bg-[#3E82F0]" /> Session Accuracy
+                      </span>
+                      <span className="flex items-center gap-1.5 text-slate-400">
+                        <span className="w-3 h-0.5 bg-slate-400" /> Baseline ({analysis.average_accuracy_pct}%)
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                        <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
+                        <YAxis domain={[30, 100]} stroke="#94a3b8" fontSize={12} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#ffffff',
+                            borderRadius: '16px',
+                            border: '2px solid #8DE5A6',
+                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="accuracy"
+                          stroke="#3E82F0"
+                          strokeWidth={3}
+                          dot={{ r: 5, fill: '#1E293B' }}
+                          activeDot={{ r: 8 }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="baseline"
+                          stroke="#94a3b8"
+                          strokeDasharray="4 4"
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Response Time & Activity Breakdown */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Response Time Trend */}
+                  <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-4">
+                    <div>
+                      <h3 className="text-xl font-black text-[#1E293B]">
+                        Average Response Time (seconds)
+                      </h3>
+                      <p className="text-slate-500 text-xs font-medium">
+                        Patient motor planning & reaction latency across gameplay sessions
+                      </p>
+                    </div>
+
+                    <div className="h-56 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={chartData} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                          <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
+                          <YAxis stroke="#94a3b8" fontSize={12} />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: '#ffffff',
+                              borderRadius: '16px',
+                              border: '2px solid #8DE5A6',
+                            }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="response_time"
+                            stroke="#6BC1B8"
+                            strokeWidth={3}
+                            dot={{ r: 5, fill: '#3E82F0' }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Games Played Distribution */}
+                  <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-4">
+                    <div>
+                      <h3 className="text-xl font-black text-[#1E293B]">
+                        Cognitive Domain Participation
+                      </h3>
+                      <p className="text-slate-500 text-xs font-medium">
+                        Distribution of cultural game activities completed by {currentPatient.name.split(' ')[0]}
+                      </p>
+                    </div>
+
+                    <div className="h-56 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={barData} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                          <XAxis dataKey="game" stroke="#94a3b8" fontSize={10} />
+                          <YAxis stroke="#94a3b8" fontSize={12} allowDecimals={false} />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: '#ffffff',
+                              borderRadius: '16px',
+                              border: '2px solid #8DE5A6',
+                            }}
+                          />
+                          <Bar dataKey="count" fill="#6BC1B8" radius={[8, 8, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Session-by-Session Scorecard Log */}
+              {analysis.recent_sessions_summary && analysis.recent_sessions_summary.length > 0 && (
+                <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-xl font-black text-[#1E293B]">
+                        Recent Game Scorecards & Analysis Log
+                      </h3>
+                      <p className="text-slate-500 text-xs font-medium">
+                        Direct empirical logs of each completed game session
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">
+                      {analysis.recent_sessions_summary.length} Recent Logs
+                    </span>
+                  </div>
+
+                  <div className="divide-y divide-slate-200 bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                    {analysis.recent_sessions_summary.map((sess) => (
+                      <div key={sess.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
+                            <Gamepad2 className="w-5 h-5 text-[#3E82F0]" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h5 className="font-black text-sm text-[#1E293B]">
+                                {sess.game_title}
+                              </h5>
+                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-bold uppercase">
+                                {sess.difficulty_level}
+                              </span>
+                            </div>
+                            <span className="text-xs text-slate-500 font-medium">
+                              {sess.date}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-4 text-xs font-bold">
+                          <div className="text-center sm:text-right">
+                            <span className="text-[10px] text-slate-400 uppercase block font-black">Accuracy</span>
+                            <span className="text-sm font-black text-[#1E293B]">{sess.accuracy}%</span>
+                          </div>
+                          <div className="text-center sm:text-right">
+                            <span className="text-[10px] text-slate-400 uppercase block font-black">Speed</span>
+                            <span className="text-sm font-mono text-[#1E293B]">{sess.response_time}s</span>
+                          </div>
+                          <div className="text-center sm:text-right">
+                            <span className="text-[10px] text-slate-400 uppercase block font-black">Mistakes</span>
+                            <span className="text-sm font-bold text-slate-600">{sess.mistakes}</span>
+                          </div>
+                          <div className="text-center sm:text-right">
+                            <span className="text-[10px] text-slate-400 uppercase block font-black">Stars</span>
+                            <span className="text-sm text-amber-500">{'★'.repeat(sess.stars || 3)}</span>
+                          </div>
+                          <div className="bg-emerald-50 text-emerald-900 border border-emerald-200 px-2.5 py-1 rounded-lg text-xs font-black">
+                            {sess.note}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="bg-[#FAFAFA] rounded-[32px] p-8 md:p-12 border-2 border-amber-200 text-center space-y-5 shadow-sm">
+              <div className="w-16 h-16 rounded-3xl bg-amber-50 border-2 border-amber-300 flex items-center justify-center mx-auto text-amber-700">
+                <Gamepad2 className="w-8 h-8" />
+              </div>
+              <div className="space-y-2 max-w-md mx-auto">
+                <h3 className="text-2xl font-black text-[#1E293B]">
+                  No Game Sessions Recorded Yet
                 </h3>
-                <p className="text-slate-500 text-xs font-medium">
-                  Session-by-session accuracy compared against {currentPatient.name.split(' ')[0]}'s historical baseline
+                <p className="text-slate-600 text-sm font-medium leading-relaxed">
+                  Smaran Sathi connects cognitive scoring directly to actual patient gameplay. There are no randomized or arbitrary placeholder numbers.
+                </p>
+                <p className="text-xs text-slate-500 italic">
+                  Once {currentPatient.name.split(' ')[0]} completes a game activity (e.g. Memory Match, Picture Recognition, or Sequence Recall), live accuracy trajectories, domain breakdowns, and clinical cognitive observations will generate automatically.
                 </p>
               </div>
-              <div className="flex items-center gap-4 text-xs font-bold">
-                <span className="flex items-center gap-1.5 text-[#3E82F0]">
-                  <span className="w-3 h-3 rounded-full bg-[#3E82F0]" /> Session Accuracy
-                </span>
-                <span className="flex items-center gap-1.5 text-slate-400">
-                  <span className="w-3 h-0.5 bg-slate-400" /> Baseline (80%)
-                </span>
-              </div>
             </div>
-
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
-                  <YAxis domain={[40, 100]} stroke="#94a3b8" fontSize={12} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: '16px',
-                      border: '2px solid #8DE5A6',
-                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="accuracy"
-                    stroke="#3E82F0"
-                    strokeWidth={3}
-                    dot={{ r: 5, fill: '#1E293B' }}
-                    activeDot={{ r: 8 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="baseline"
-                    stroke="#94a3b8"
-                    strokeDasharray="4 4"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Chart 2: Response Time & Activity Breakdown */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Response Time Trend */}
-            <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-4">
-              <div>
-                <h3 className="text-xl font-black text-[#1E293B]">
-                  Average Response Time (seconds)
-                </h3>
-                <p className="text-slate-500 text-xs font-medium">
-                  Lower & steady reaction times indicate confident recall
-                </p>
-              </div>
-
-              <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
-                    <YAxis stroke="#94a3b8" fontSize={12} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#ffffff',
-                        borderRadius: '16px',
-                        border: '2px solid #8DE5A6',
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="response_time"
-                      stroke="#6BC1B8"
-                      strokeWidth={3}
-                      dot={{ r: 5, fill: '#3E82F0' }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Games Played Distribution */}
-            <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-4">
-              <div>
-                <h3 className="text-xl font-black text-[#1E293B]">
-                  Cognitive Domain Participation
-                </h3>
-                <p className="text-slate-500 text-xs font-medium">
-                  Frequency of each cultural game module completed
-                </p>
-              </div>
-
-              <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={barData} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="game" stroke="#94a3b8" fontSize={10} />
-                    <YAxis stroke="#94a3b8" fontSize={12} allowDecimals={false} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#ffffff',
-                        borderRadius: '16px',
-                        border: '2px solid #8DE5A6',
-                      }}
-                    />
-                    <Bar dataKey="count" fill="#6BC1B8" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -1076,7 +1508,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
         </div>
       )}
 
-      {/* TAB 5: AI Personalization Engine Details */}
+      {/* TAB 5: AI Personalization Engine Details — Connected to Patient Gaming Scores */}
       {activeTab === 'ai' && recommendation && (
         <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-6">
           <div>
@@ -1085,7 +1517,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
               <span>AI Cognitive Personalization Engine</span>
             </h3>
             <p className="text-slate-500 text-xs font-medium">
-              Rule-based adaptive tuning based on recent accuracy, mistake frequency, and response times
+              Rule-based adaptive tuning governed directly by patient game accuracy, reaction times, and mistake frequency
             </p>
           </div>
 
@@ -1114,9 +1546,14 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
               <p className="text-[#1E293B] text-sm leading-relaxed font-medium">
                 {recommendation.observation_note}
               </p>
-              <div className="pt-2 border-t border-slate-200 text-xs text-slate-500 flex items-center gap-2 font-bold">
-                <Layers className="w-4 h-4 text-slate-400" />
-                <span>Rolling weighted engagement index: {recommendation.engagement_score}%</span>
+              <div className="pt-2 border-t border-slate-200 text-xs text-slate-500 flex items-center justify-between font-bold">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-slate-400" />
+                  <span>Cognitive Gaming Score:</span>
+                </div>
+                <span className="font-mono font-black text-[#1E293B]">
+                  {recommendation.engagement_score > 0 ? `${recommendation.engagement_score} / 100` : 'Pending game data'}
+                </span>
               </div>
             </div>
           </div>

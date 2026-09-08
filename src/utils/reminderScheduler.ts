@@ -61,10 +61,20 @@ export function isReminderDue(reminder: Reminder, now: Date): boolean {
  * Generates a unique key for a triggered reminder on a given date and time:
  * e.g. "rem-123_2026-09-07_08:30 AM" so it triggers once per scheduled slot (and re-triggers if snoozed to a new time)
  */
-export function getTriggerKey(reminderId: string, reminderTime: string, now: Date): string {
-  const dateStr = now.toISOString().split('T')[0];
-  const cleanedTime = (reminderTime || '').trim().toUpperCase();
-  return `${reminderId}_${dateStr}_${cleanedTime}`;
+export function getTriggerKey(reminderId: string, reminderTimeOrDate: string | Date, optionalNow?: Date): string {
+  let timeStr = '';
+  let nowObj: Date;
+
+  if (reminderTimeOrDate instanceof Date) {
+    nowObj = reminderTimeOrDate;
+    timeStr = '';
+  } else {
+    timeStr = (reminderTimeOrDate || '').trim().toUpperCase();
+    nowObj = optionalNow || new Date();
+  }
+
+  const dateStr = nowObj.toISOString().split('T')[0];
+  return `${reminderId}_${dateStr}${timeStr ? '_' + timeStr : ''}`;
 }
 
 /**

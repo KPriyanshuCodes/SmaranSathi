@@ -108,13 +108,13 @@ export const ConsultationPortalView: React.FC<ConsultationPortalViewProps> = ({ 
 
   return (
     <div className="space-y-6">
-      {/* Ecosystem Header */}
+      {/* Clinical Header */}
       <div className="bg-gradient-to-r from-cyan-900 via-blue-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-7 shadow-xl border border-cyan-800 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <span className="bg-cyan-500/20 text-cyan-200 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider border border-cyan-400/30 flex items-center gap-1.5 w-fit">
               <Stethoscope className="w-3.5 h-3.5 text-cyan-300" />
-              Ecosystem Step • Clinical Collaboration
+              Clinical Portal • Medical Collaboration
             </span>
             <h2 className="text-2xl sm:text-3xl font-black text-white">
               Professional Consultation Portal
