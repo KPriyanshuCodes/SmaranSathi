@@ -57,8 +57,8 @@ export const CommunityImpactView: React.FC = () => {
         const pData = await pRes.json();
         setPolicyData(pData);
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Offline fallback
     } finally {
       setLoading(false);
     }
@@ -78,8 +78,8 @@ export const CommunityImpactView: React.FC = () => {
           prev.map((p) => (p.id === id ? { ...p, likes: data.likes } : p))
         );
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Offline fallback
     }
   };
 

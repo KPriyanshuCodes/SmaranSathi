@@ -1449,12 +1449,18 @@ app.delete('/api/familiar-people/:id', (req: Request, res: Response) => {
 // Alerts (SOS / Notification system)
 app.get('/api/alerts/:userId', (req: Request, res: Response) => {
   const { userId } = req.params;
-  const list = alerts.filter(a => a.user_id === userId);
+  const list = alerts.filter(a => a.user_id === userId || a.caregiver_id === userId);
+  res.json({ alerts: list });
+});
+
+app.get('/api/alerts/caregiver/:caregiverId', (req: Request, res: Response) => {
+  const { caregiverId } = req.params;
+  const list = alerts.filter(a => a.caregiver_id === caregiverId);
   res.json({ alerts: list });
 });
 
 app.post('/api/alerts', (req: Request, res: Response) => {
-  const { user_id, type, message, patient_name } = req.body;
+  const { user_id, type, message, patient_name, caregiver_id } = req.body;
   if (!user_id || !message) {
     return res.status(400).json({ error: 'Missing required alert parameters' });
   }
@@ -1463,6 +1469,7 @@ app.post('/api/alerts', (req: Request, res: Response) => {
     id: `alt-${Date.now()}`,
     user_id,
     patient_name: patient_name || 'Elderly Patient',
+    caregiver_id: caregiver_id || undefined,
     type: type || 'sos',
     message,
     triggered_at: new Date().toISOString(),

@@ -36,6 +36,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Emergency and cognitive alerts
+    match /alerts/{alertId} {
+      allow read, write: if true;
+    }
+
     // Health check and connectivity validation collection
     match /test/{docId} {
       allow read, write: if true;

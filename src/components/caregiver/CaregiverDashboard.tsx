@@ -24,7 +24,6 @@ import {
   Info,
   Calendar,
   Layers,
-  Database,
   Stethoscope,
   Pill,
   BookOpen,
@@ -47,18 +46,16 @@ import {
   Alert, 
   FamiliarPerson, 
   AIRecommendation, 
-  DifficultyLevel,
-  ReminderType,
-  RecurrenceType,
-  TrendData,
-  PatientGamingAnalysis,
-  CognitiveDomainScore,
-  GameSession
+  DifficultyLevel, 
+  ReminderType, 
+  RecurrenceType, 
+  TrendData, 
+  PatientGamingAnalysis, 
+  CognitiveDomainScore, 
+  GameSession 
 } from '../../types';
-import { DataLakeHubView } from '../datalake/DataLakeHubView';
 import { IntegratedCareView } from '../care/IntegratedCareView';
 import { ConsultationPortalView } from '../consultation/ConsultationPortalView';
-import { CommunityImpactView } from '../community/CommunityImpactView';
 import { ScheduleRemindersManager } from './ScheduleRemindersManager';
 import { soundEffects } from '../../utils/speechAndAudio';
 
@@ -79,9 +76,7 @@ interface CaregiverDashboardProps {
   onResolveAlert: (id: string) => void;
   onAddFamiliarPerson: (person: Omit<FamiliarPerson, 'id'>) => void;
   onDeleteFamiliarPerson: (id: string) => void;
-  onOpenOnboarding?: () => void;
   onOpenJournal?: () => void;
-  onTriggerSOS?: () => void;
   onTriggerAlarm?: (reminder: Reminder) => void;
   trendData: TrendData | null;
 }
@@ -103,13 +98,11 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
   onResolveAlert,
   onAddFamiliarPerson,
   onDeleteFamiliarPerson,
-  onOpenOnboarding,
   onOpenJournal,
-  onTriggerSOS,
   onTriggerAlarm,
   trendData,
 }) => {
-  const [activeTab, setActiveTab] = useState<'trends' | 'datalake' | 'care' | 'consultation' | 'community' | 'reminders' | 'alerts' | 'people' | 'ai'>('trends');
+  const [activeTab, setActiveTab] = useState<'trends' | 'care' | 'consultation' | 'reminders' | 'alerts' | 'people'>('trends');
   const [showAddReminderModal, setShowAddReminderModal] = useState(false);
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
 
@@ -686,20 +679,6 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
           </button>
 
           <button
-            id="tab-datalake"
-            onClick={() => setActiveTab('datalake')}
-            style={activeTab === 'datalake' ? { background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' } : undefined}
-            className={`px-4 py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'datalake'
-                ? 'text-[#0F172A] border border-[#6BC1B8] shadow-sm'
-                : 'bg-[#FAFAFA] hover:bg-white text-[#1E293B] border border-[#8DE5A6]'
-            }`}
-          >
-            <Database className="w-4 h-4 text-[#3E82F0]" />
-            <span>Data Lake & AI Hub</span>
-          </button>
-
-          <button
             id="tab-care"
             onClick={() => setActiveTab('care')}
             style={activeTab === 'care' ? { background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' } : undefined}
@@ -725,20 +704,6 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
           >
             <Stethoscope className="w-4 h-4 text-[#3E82F0]" />
             <span>Doctor Consultations</span>
-          </button>
-
-          <button
-            id="tab-community"
-            onClick={() => setActiveTab('community')}
-            style={activeTab === 'community' ? { background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' } : undefined}
-            className={`px-4 py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'community'
-                ? 'text-[#0F172A] border border-[#6BC1B8] shadow-sm'
-                : 'bg-[#FAFAFA] hover:bg-white text-[#1E293B] border border-[#8DE5A6]'
-            }`}
-          >
-            <Users className="w-4 h-4 text-[#3E82F0]" />
-            <span>Community & Research</span>
           </button>
 
           <button
@@ -785,35 +750,10 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
             <Users className="w-4 h-4 text-[#3E82F0]" />
             <span>Family Album ({familiarPeople.length})</span>
           </button>
-
-          <button
-            id="tab-ai"
-            onClick={() => setActiveTab('ai')}
-            style={activeTab === 'ai' ? { background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' } : undefined}
-            className={`px-4 py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'ai'
-                ? 'text-[#0F172A] border border-[#6BC1B8] shadow-sm'
-                : 'bg-[#FAFAFA] hover:bg-white text-[#1E293B] border border-[#8DE5A6]'
-            }`}
-          >
-            <Brain className="w-4 h-4 text-[#3E82F0]" />
-            <span>AI Policy Insights</span>
-          </button>
         </div>
 
-        {/* Quick Action Buttons for Onboarding & Journal */}
+        {/* Quick Action Buttons for Journal */}
         <div className="flex items-center gap-2">
-          {onOpenOnboarding && (
-            <button
-              onClick={onOpenOnboarding}
-              className="px-3 py-2 rounded-xl bg-white hover:bg-slate-50 text-[#1E293B] font-black text-xs flex items-center gap-1 border border-[#8DE5A6] cursor-pointer shadow-2xs"
-              title="Tailored Onboarding Assessment"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-[#3E82F0]" />
-              <span>Assessment & Goals</span>
-            </button>
-          )}
-
           {onOpenJournal && (
             <button
               onClick={onOpenJournal}
@@ -827,20 +767,11 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
         </div>
       </div>
 
-      {/* TAB: Data Lake & AI Hub */}
-      {activeTab === 'datalake' && (
-        <DataLakeHubView
-          userId={currentPatient.id}
-          patientName={currentPatient.name}
-        />
-      )}
-
       {/* TAB: Integrated Care Services */}
       {activeTab === 'care' && (
         <IntegratedCareView
           user={currentPatient}
           caregiverName={caregiverUser.name}
-          onTriggerSOS={onTriggerSOS}
           onAddReminder={onAddReminder}
         />
       )}
@@ -850,11 +781,6 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
         <ConsultationPortalView
           user={currentPatient}
         />
-      )}
-
-      {/* TAB: Long-Term Impact & Community */}
-      {activeTab === 'community' && (
-        <CommunityImpactView />
       )}
 
       {/* TAB 1: Patient Gaming Performance & Deep Cognitive Analysis */}
@@ -1504,58 +1430,6 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                 </button>
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 5: AI Personalization Engine Details — Connected to Patient Gaming Scores */}
-      {activeTab === 'ai' && recommendation && (
-        <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-6">
-          <div>
-            <h3 className="text-xl font-black text-[#1E293B] flex items-center gap-2">
-              <Brain className="w-6 h-6 text-[#3E82F0]" />
-              <span>AI Cognitive Personalization Engine</span>
-            </h3>
-            <p className="text-slate-500 text-xs font-medium">
-              Rule-based adaptive tuning governed directly by patient game accuracy, reaction times, and mistake frequency
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="p-5 rounded-2xl bg-white border-2 border-[#8DE5A6] space-y-3">
-              <span className="text-xs font-black text-[#1E293B] uppercase tracking-wide">
-                Current Difficulty Recommendation
-              </span>
-              <div className="flex items-center gap-3">
-                <span className="text-3xl font-black text-[#1E293B] uppercase">
-                  {recommendation.recommended_difficulty}
-                </span>
-                <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 font-black text-xs">
-                  Next Activity: {recommendation.next_game_type.replace('_', ' ').toUpperCase()}
-                </span>
-              </div>
-              <p className="text-slate-600 text-sm leading-relaxed font-medium">
-                {recommendation.rationale}
-              </p>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-white border-2 border-slate-200 space-y-3">
-              <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
-                Recent Observation Note
-              </span>
-              <p className="text-[#1E293B] text-sm leading-relaxed font-medium">
-                {recommendation.observation_note}
-              </p>
-              <div className="pt-2 border-t border-slate-200 text-xs text-slate-500 flex items-center justify-between font-bold">
-                <div className="flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-slate-400" />
-                  <span>Cognitive Gaming Score:</span>
-                </div>
-                <span className="font-mono font-black text-[#1E293B]">
-                  {recommendation.engagement_score > 0 ? `${recommendation.engagement_score} / 100` : 'Pending game data'}
-                </span>
-              </div>
-            </div>
           </div>
         </div>
       )}

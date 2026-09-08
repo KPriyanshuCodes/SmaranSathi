@@ -93,6 +93,7 @@ export interface Alert {
   id: string;
   user_id: string;
   patient_name?: string;
+  caregiver_id?: string;
   type: string;
   message: string;
   severity?: 'low' | 'medium' | 'high' | string;

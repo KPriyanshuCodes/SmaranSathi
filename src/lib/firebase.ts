@@ -12,7 +12,8 @@ import {
   deleteDoc, 
   query, 
   where,
-  orderBy
+  orderBy,
+  onSnapshot
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { 
@@ -21,7 +22,8 @@ import {
   Reminder, 
   MemoryJournalEntry, 
   FamiliarPerson, 
-  GameSession 
+  GameSession,
+  Alert
 } from '../types';
 
 // Initialize Firebase App
@@ -602,5 +604,144 @@ export function clearRememberedUser(): void {
     }
   } catch (e) {
     console.warn('Could not clear remembered user:', e);
+  }
+}
+
+// =========================================================================
+// 7. Emergency & Cognitive Alerts (SOS Alerts Real-Time Dispatch)
+// =========================================================================
+
+const ALERTS_COLLECTION = 'alerts';
+const LOCAL_ALERTS_KEY = 'smritisaathi_cached_alerts';
+
+function getLocalAlerts(): Alert[] {
+  try {
+    if (typeof window === 'undefined') return [];
+    const raw = localStorage.getItem(LOCAL_ALERTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalAlerts(alerts: Alert[]): void {
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(LOCAL_ALERTS_KEY, JSON.stringify(alerts));
+    }
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
+export async function saveAlertToFirebase(alert: Alert): Promise<void> {
+  try {
+    // 1. Persist locally first for zero-latency UI updates
+    const local = getLocalAlerts();
+    const filtered = local.filter(a => a.id !== alert.id);
+    saveLocalAlerts([alert, ...filtered]);
+
+    // 2. Persist to Firestore
+    const alertDocRef = doc(db, ALERTS_COLLECTION, alert.id);
+    await setDoc(alertDocRef, {
+      ...alert,
+      triggered_at: alert.triggered_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, { merge: true });
+  } catch (e) {
+    console.warn('Could not save alert to Firestore, fallback cached locally:', e);
+  }
+}
+
+export async function getAlertsFromFirebase(userId?: string): Promise<Alert[]> {
+  try {
+    const alertsRef = collection(db, ALERTS_COLLECTION);
+    const snap = await getDocs(alertsRef);
+    if (!snap.empty) {
+      const items: Alert[] = [];
+      snap.forEach(docSnap => {
+        const data = docSnap.data() as Alert;
+        if (!userId || data.user_id === userId || (data.caregiver_id && data.caregiver_id === userId)) {
+          items.push(data);
+        }
+      });
+      // Sort newest first
+      items.sort((a, b) => new Date(b.triggered_at || b.created_at || '').getTime() - new Date(a.triggered_at || a.created_at || '').getTime());
+      saveLocalAlerts(items);
+      return items;
+    }
+  } catch (e) {
+    console.warn('Firestore alerts fetch failed, using local cache:', e);
+  }
+
+  // Fallback to local cache
+  const local = getLocalAlerts();
+  if (userId) {
+    return local.filter(a => a.user_id === userId || a.caregiver_id === userId);
+  }
+  return local;
+}
+
+export async function resolveAlertInFirebase(alertId: string): Promise<void> {
+  try {
+    // Update local cache
+    const local = getLocalAlerts();
+    const updated = local.map(a => a.id === alertId ? { ...a, resolved: true, resolved_at: new Date().toISOString() } : a);
+    saveLocalAlerts(updated);
+
+    // Update Firestore
+    const alertDocRef = doc(db, ALERTS_COLLECTION, alertId);
+    await updateDoc(alertDocRef, {
+      resolved: true,
+      resolved_at: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.warn('Could not resolve alert in Firestore:', e);
+  }
+}
+
+/**
+ * Real-time listener for alerts relevant to a caregiver.
+ * Fires whenever any patient sends an SOS or whenever alert status changes.
+ */
+export function subscribeToCaregiverAlerts(
+  caregiverId: string,
+  assignedPatientIds: string[],
+  onAlertsUpdate: (alerts: Alert[]) => void
+): () => void {
+  try {
+    const alertsRef = collection(db, ALERTS_COLLECTION);
+    const unsubscribe = onSnapshot(
+      alertsRef,
+      (snapshot) => {
+        const items: Alert[] = [];
+        snapshot.forEach((docSnap) => {
+          const alert = docSnap.data() as Alert;
+          // Match if this alert is for this caregiver or one of their assigned patients
+          const isTargeted =
+            alert.caregiver_id === caregiverId ||
+            (alert.user_id && assignedPatientIds.includes(alert.user_id));
+
+          if (isTargeted || assignedPatientIds.length === 0) {
+            items.push(alert);
+          }
+        });
+
+        items.sort(
+          (a, b) =>
+            new Date(b.triggered_at || b.created_at || '').getTime() -
+            new Date(a.triggered_at || a.created_at || '').getTime()
+        );
+        onAlertsUpdate(items);
+      },
+      (error) => {
+        console.warn('Alerts real-time snapshot subscription warning:', error);
+      }
+    );
+
+    return unsubscribe;
+  } catch (e) {
+    console.warn('Failed to subscribe to alerts snapshot:', e);
+    return () => {};
   }
 }

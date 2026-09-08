@@ -27,10 +27,10 @@ import { GameFeedbackModal } from './components/games/GameFeedbackModal';
 import { LoginPage } from './components/auth/LoginPage';
 import { FAMILIAR_PEOPLE_SEED } from './data/nerContent';
 import { MemoryJournalModal } from './components/journal/MemoryJournalModal';
-import { OnboardingModal } from './components/onboarding/OnboardingModal';
 import { ReminderNotificationModal } from './components/reminders/ReminderNotificationModal';
 import { ConnectCaregiverModal } from './components/elderly/ConnectCaregiverModal';
 import { EditProfileModal } from './components/profile/EditProfileModal';
+import { CaregiverSOSAlertModal } from './components/caregiver/CaregiverSOSAlertModal';
 import { isReminderDue, getTriggerKey, calculateSnoozeTime } from './utils/reminderScheduler';
 import { recordLevelCompletion } from './utils/gameProgress';
 import { 
@@ -50,7 +50,10 @@ import {
   saveFamilyMemberToFirebase, 
   saveGameSessionToFirebase,
   getAssignedElderlyIdsForCaregiver,
-  linkElderlyToCaregiverInFirebase
+  linkElderlyToCaregiverInFirebase,
+  saveAlertToFirebase,
+  resolveAlertInFirebase,
+  subscribeToCaregiverAlerts
 } from './lib/firebase';
 
 export default function App() {
@@ -68,10 +71,11 @@ export default function App() {
   const [isLevelCompleteModalOpen, setIsLevelCompleteModalOpen] = useState<boolean>(false);
   const [isFamilyAlbumOpen, setIsFamilyAlbumOpen] = useState<boolean>(false);
   const [isJournalOpen, setIsJournalOpen] = useState<boolean>(false);
-  const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(false);
   const [isConnectCaregiverOpen, setIsConnectCaregiverOpen] = useState<boolean>(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState<boolean>(false);
   const [editingTargetUser, setEditingTargetUser] = useState<User | null>(null);
+  const [activeCaregiverSOS, setActiveCaregiverSOS] = useState<Alert | null>(null);
+  const notifiedSOSIdsRef = useRef<Set<string>>(new Set());
 
   // Sync users with Firebase Firestore and backend on mount, plus restore remembered session
   useEffect(() => {
@@ -556,28 +560,131 @@ export default function App() {
     currentUser?.connected_caregiver_id ||
     undefined;
 
+  const isElderly = currentUser?.role === 'elderly';
+  const assignedPatients = useMemo(() => {
+    if (!currentUser || currentUser.role !== 'caregiver') return [];
+    return users.filter((u) => {
+      if (u.role !== 'elderly') return false;
+      const cgCode = (currentUser.caregiver_code || '').trim().toUpperCase();
+      const cgId = currentUser.id.trim().toUpperCase();
+      const conn = (u.connected_caregiver_id || '').trim().toUpperCase();
+      if (conn && (conn === cgCode || conn === cgId)) return true;
+      if (assignedPatientIds.has(u.id)) return true;
+      return false;
+    });
+  }, [currentUser, users, assignedPatientIds]);
+
+  const currentPatientUser: User | null = useMemo(() => {
+    if (!currentUser) return null;
+    if (isElderly) return currentUser;
+    return assignedPatients.find((u) => u.id === selectedPatientId) || assignedPatients[0] || null;
+  }, [currentUser, isElderly, assignedPatients, selectedPatientId]);
+
   // Trigger SOS Alert (internal backend & state update)
   const handleTriggerSOS = async () => {
     if (!currentUser) return;
+    const caregiverId = assignedCaregiverForElderly?.id || currentUser.connected_caregiver_id;
+    const alertId = `alt-${Date.now()}`;
+    const newAlert: Alert = {
+      id: alertId,
+      user_id: currentUser.id,
+      patient_name: currentUser.name,
+      caregiver_id: caregiverId,
+      type: 'sos',
+      severity: 'high',
+      message: `🚨 Urgent: ${currentUser.name} pressed the SOS assistance button in ${currentUser.location || 'Assam'}. Assigned caregiver (${assignedCaregiverName}) notified.`,
+      triggered_at: new Date().toISOString(),
+      resolved: false,
+      lat: 26.1856,
+      lng: 91.7539,
+    };
+
+    setAlerts((prev) => [newAlert, ...prev]);
+
+    // Persist to Firestore for real-time caregiver delivery across tabs and devices
+    saveAlertToFirebase(newAlert).catch((err) =>
+      console.warn('Firestore SOS alert save warning:', err)
+    );
+
     try {
       const res = await fetch('/api/alerts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: currentUser.id,
-          patient_name: currentUser.name,
-          type: 'sos',
-          message: `🚨 Urgent: ${currentUser.name} pressed the SOS assistance button in ${currentUser.location || 'Assam'}. Assigned caregiver (${assignedCaregiverName}) notified.`,
-        }),
+        body: JSON.stringify(newAlert),
       });
       if (res.ok) {
         const data = await res.json();
-        setAlerts((prev) => [data.alert, ...prev]);
+        if (data.alert) {
+          setAlerts((prev) => [data.alert, ...prev.filter((a) => a.id !== newAlert.id)]);
+        }
       }
     } catch (err) {
       console.warn('SOS fallback', err);
     }
   };
+
+  // Real-time listener for Caregiver when any assigned patient sends an SOS alert
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'caregiver') return;
+
+    const caregiverId = currentUser.id;
+    const patientIds = assignedPatients.map((p) => p.id);
+
+    // 1. Subscribe to Firestore alerts in real-time
+    const unsubscribe = subscribeToCaregiverAlerts(
+      caregiverId,
+      patientIds,
+      (incomingAlerts) => {
+        setAlerts(incomingAlerts);
+
+        // Find unresolved SOS alert for this caregiver or their assigned patients
+        const unresolvedSOS = incomingAlerts.filter(
+          (a) =>
+            a.type === 'sos' &&
+            !a.resolved &&
+            (a.caregiver_id === caregiverId ||
+              (a.user_id && patientIds.includes(a.user_id)) ||
+              patientIds.length === 0)
+        );
+
+        if (unresolvedSOS.length > 0) {
+          const latestSOS = unresolvedSOS[0];
+          if (!notifiedSOSIdsRef.current.has(latestSOS.id)) {
+            notifiedSOSIdsRef.current.add(latestSOS.id);
+            setActiveCaregiverSOS(latestSOS);
+          }
+        }
+      }
+    );
+
+    // 2. High-frequency polling fallback (every 4 seconds)
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/alerts/caregiver/${caregiverId}`);
+        if (res.ok) {
+          const data = await res.json();
+          const list: Alert[] = data.alerts || [];
+          const unresolved = list.filter((a) => a.type === 'sos' && !a.resolved);
+          if (unresolved.length > 0) {
+            const latest = unresolved[0];
+            if (!notifiedSOSIdsRef.current.has(latest.id)) {
+              notifiedSOSIdsRef.current.add(latest.id);
+              setActiveCaregiverSOS(latest);
+              setAlerts((prev) => {
+                const exists = prev.some((a) => a.id === latest.id);
+                return exists ? prev : [latest, ...prev];
+              });
+            }
+          }
+        }
+      } catch {}
+    }, 4000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(pollInterval);
+    };
+  }, [currentUser, assignedPatients]);
 
   /**
    * Dedicated triggerSOS function called on confirmation from FloatingSOSButton.
@@ -697,8 +804,12 @@ export default function App() {
   // Resolve Alert (Caregiver)
   const handleResolveAlert = async (id: string) => {
     setAlerts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, resolved: true } : a))
+      prev.map((a) => (a.id === id ? { ...a, resolved: true, resolved_at: new Date().toISOString() } : a))
     );
+    if (activeCaregiverSOS?.id === id) {
+      setActiveCaregiverSOS(null);
+    }
+    resolveAlertInFirebase(id).catch(() => {});
     try {
       await fetch(`/api/alerts/${id}/resolve`, { method: 'PUT' });
     } catch {}
@@ -759,25 +870,6 @@ export default function App() {
       />
     );
   }
-
-  // Determine current active patient for Caregiver view (STRICT PRIVACY: Only assigned patients)
-  const isElderly = currentUser.role === 'elderly';
-  const assignedPatients = isElderly
-    ? []
-    : users.filter((u) => {
-        if (u.role !== 'elderly') return false;
-        if (!currentUser || currentUser.role !== 'caregiver') return false;
-        const cgCode = (currentUser.caregiver_code || '').trim().toUpperCase();
-        const cgId = currentUser.id.trim().toUpperCase();
-        const conn = (u.connected_caregiver_id || '').trim().toUpperCase();
-        if (conn && (conn === cgCode || conn === cgId)) return true;
-        if (assignedPatientIds.has(u.id)) return true;
-        return false;
-      });
-
-  const currentPatientUser: User | null = isElderly
-    ? currentUser 
-    : (assignedPatients.find((u) => u.id === selectedPatientId) || assignedPatients[0] || null);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F8FAFC] text-[#1E293B] font-sans">
@@ -918,9 +1010,7 @@ export default function App() {
             onResolveAlert={handleResolveAlert}
             onAddFamiliarPerson={handleAddFamiliarPerson}
             onDeleteFamiliarPerson={handleDeleteFamiliarPerson}
-            onOpenOnboarding={() => setIsOnboardingOpen(true)}
             onOpenJournal={() => setIsJournalOpen(true)}
-            onTriggerSOS={handleTriggerSOS}
             onTriggerAlarm={handleTriggerManualAlarm}
             trendData={trendData}
           />
@@ -969,20 +1059,6 @@ export default function App() {
         patientName={currentPatientUser?.name}
       />
 
-      {/* Tailored Onboarding Assessment (Step 2 in Flow Diagram) */}
-      {currentPatientUser && (
-        <OnboardingModal
-          isOpen={isOnboardingOpen}
-          onClose={() => setIsOnboardingOpen(false)}
-          user={currentPatientUser}
-          onSaveGoals={() => {
-            if (currentPatientUser?.id) {
-              loadPatientData(currentPatientUser.id);
-            }
-          }}
-        />
-      )}
-
       {/* Memory Reminiscence Journal Modal */}
       {currentPatientUser && (
         <MemoryJournalModal
@@ -1028,12 +1104,29 @@ export default function App() {
         onReturnHome={handleReturnHome}
       />
 
-      {/* Floating Emergency SOS Button - Positioned in lower right corner away from header */}
-      <FloatingSOSButton
-        onTriggerSOS={triggerSOS}
-        patientName={currentPatientUser?.name || currentUser.name}
-        contactName={assignedCaregiverName}
-      />
+      {/* Real-time Emergency SOS Alert Modal for Assigned Caregiver */}
+      {currentUser?.role === 'caregiver' && activeCaregiverSOS && (
+        <CaregiverSOSAlertModal
+          alert={activeCaregiverSOS}
+          patient={users.find((u) => u.id === activeCaregiverSOS.user_id) || currentPatientUser}
+          onResolve={handleResolveAlert}
+          onDismiss={() => setActiveCaregiverSOS(null)}
+          onViewPatient={(patientId) => {
+            setSelectedPatientId(patientId);
+            loadPatientData(patientId);
+            setActiveCaregiverSOS(null);
+          }}
+        />
+      )}
+
+      {/* Floating Emergency SOS Button - Exclusively for Elderly Patient Companion View */}
+      {currentUser?.role === 'elderly' && (
+        <FloatingSOSButton
+          onTriggerSOS={triggerSOS}
+          patientName={currentUser.name}
+          contactName={assignedCaregiverName}
+        />
+      )}
     </div>
   );
 }

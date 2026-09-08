@@ -7,7 +7,6 @@ import {
   Plus, 
   MapPin, 
   Phone, 
-  ShieldAlert, 
   Bell, 
   Radio, 
   Activity, 
@@ -16,13 +15,12 @@ import {
   Trash2,
   UserCheck
 } from 'lucide-react';
-import { MedicationSchedule, Alert, User, Reminder } from '../../types';
+import { MedicationSchedule, User, Reminder } from '../../types';
 import { soundEffects } from '../../utils/soundEffects';
 
 interface IntegratedCareViewProps {
   user: User;
   caregiverName?: string;
-  onTriggerSOS?: () => void;
   onAddReminder?: (newRem: Omit<Reminder, 'id' | 'created_at' | 'completed'>) => void;
   isElderlyMode?: boolean;
 }
@@ -30,15 +28,12 @@ interface IntegratedCareViewProps {
 export const IntegratedCareView: React.FC<IntegratedCareViewProps> = ({
   user,
   caregiverName,
-  onTriggerSOS,
   onAddReminder,
   isElderlyMode = false
 }) => {
   const [medications, setMedications] = useState<MedicationSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddingMed, setIsAddingMed] = useState(false);
-  const [isSosActive, setIsSosActive] = useState(false);
-  const [sosAlert, setSosAlert] = useState<Alert | null>(null);
 
   const effectiveCaregiverName =
     caregiverName ||
@@ -142,41 +137,6 @@ export const IntegratedCareView: React.FC<IntegratedCareViewProps> = ({
     } catch (err) {
       console.error(err);
     }
-  };
-
-  const handleTriggerEmergencySOS = async () => {
-    soundEffects.playGentleTap(300);
-    setIsSosActive(true);
-
-    try {
-      const res = await fetch('/api/emergency/sos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: user.id,
-          patient_name: user.name,
-          lat: 26.1856,
-          lng: 91.7539,
-          location_name: user.location || 'Silpukhuri, Guwahati, Assam'
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSosAlert(data.alert);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-
-    if (onTriggerSOS) {
-      onTriggerSOS();
-    }
-  };
-
-  const handleResolveEmergency = () => {
-    soundEffects.playSuccessChime();
-    setIsSosActive(false);
-    setSosAlert(null);
   };
 
   const takenCount = medications.filter((m) => m.taken_today).length;
@@ -450,37 +410,19 @@ export const IntegratedCareView: React.FC<IntegratedCareViewProps> = ({
               </div>
             </div>
 
-            {/* Active SOS State vs Trigger SOS Button */}
-            {isSosActive ? (
-              <div className="bg-red-50 border-2 border-red-500 rounded-2xl p-4 space-y-3 animate-in zoom-in-95">
-                <div className="flex items-center gap-2.5 text-red-900 font-black">
-                  <ShieldAlert className="w-5 h-5 text-red-600 animate-bounce" />
-                  <span>EMERGENCY SOS BEACON ACTIVE</span>
-                </div>
-                <p className="text-xs text-red-800 font-medium">
-                  Audible alarm chime triggered. Live coordinates broadcasted to assigned caregiver {effectiveCaregiverName} and the regional emergency dispatch center.
-                </p>
-                <button
-                  onClick={handleResolveEmergency}
-                  className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black shadow cursor-pointer transition-colors"
-                >
-                  I Am Safe • Deactivate Alarm
-                </button>
-              </div>
-            ) : (
-              <div className="pt-2">
-                <button
-                  onClick={handleTriggerEmergencySOS}
-                  className="w-full py-4 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white rounded-2xl font-black text-sm sm:text-base shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer"
-                >
-                  <AlertTriangle className="w-5 h-5" />
-                  <span>TRIGGER EMERGENCY SOS BEACON</span>
-                </button>
-                <span className="text-[10px] text-gray-500 text-center block mt-1 font-semibold">
-                  Instantly alerts designated family contacts with live North East regional GPS
+            {/* 24/7 Emergency SOS Monitoring Status */}
+            <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 space-y-2">
+              <div className="flex items-center gap-2 text-emerald-900 font-black text-xs">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600"></span>
                 </span>
+                <span className="uppercase tracking-wider">Patient SOS Sentinel Active</span>
               </div>
-            )}
+              <p className="text-xs text-emerald-800 leading-relaxed font-medium">
+                Live beacon active for <strong className="font-bold text-emerald-950">{user.name}</strong>. Whenever they trigger emergency SOS from their companion device, you will instantly receive an audible siren alert and full location telemetry.
+              </p>
+            </div>
           </div>
 
           <div className="pt-3 border-t border-red-100 text-[11px] text-gray-500 font-medium flex items-center justify-between">
