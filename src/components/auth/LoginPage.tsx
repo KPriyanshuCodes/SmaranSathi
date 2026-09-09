@@ -701,7 +701,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           </div>
           <div className="space-y-1.5">
             <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight flex items-center justify-center gap-2.5 flex-wrap">
-              <span>স্মরণ साथी</span>
+              <span>स्मरण साथी</span>
               <span className="text-[#2794EB] bg-white border border-[#47D6B6] text-lg sm:text-xl px-3 py-0.5 rounded-full font-black shadow-2xs">
                 Smaran Sathi
               </span>
