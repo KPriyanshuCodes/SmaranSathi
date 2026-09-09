@@ -629,56 +629,6 @@ export function clearRememberedUser(): void {
   }
 }
 
-/**
- * Completely purges all user IDs, caregiver links, reminders, alerts, and sessions
- * from Firestore, local storage, and backend disk.
- */
-export async function deleteAllUsersAndResetDatabase(): Promise<{ success: boolean; message: string }> {
-  try {
-    // 1. Clear Local Storage
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(REMEMBERED_USER_KEY);
-      localStorage.removeItem(ALL_PROFILES_LOCAL_REGISTRY_KEY);
-      localStorage.removeItem(LOCAL_ALERTS_KEY);
-      localStorage.removeItem('smritisaathi_cached_alerts');
-    }
-
-    // 2. Clear Firebase Firestore Collections
-    const collectionsToClear = [
-      USERS_COLLECTION,
-      LINKS_COLLECTION,
-      REMINDERS_COLLECTION,
-      ALERTS_COLLECTION,
-      JOURNALS_COLLECTION,
-      FAMILY_COLLECTION,
-      SESSIONS_COLLECTION,
-    ];
-
-    for (const collName of collectionsToClear) {
-      try {
-        const snap = await getDocs(collection(db, collName));
-        for (const docSnap of snap.docs) {
-          await deleteDoc(doc(db, collName, docSnap.id)).catch(() => {});
-        }
-      } catch (e) {
-        console.warn(`Could not clear collection ${collName}:`, e);
-      }
-    }
-
-    // 3. Clear Backend in-memory & file storage
-    try {
-      await fetch('/api/admin/clear-all-users', { method: 'POST' });
-    } catch (e) {
-      console.warn('Backend clear endpoint call:', e);
-    }
-
-    return { success: true, message: 'All user IDs and records have been deleted successfully.' };
-  } catch (err) {
-    console.error('Error during database reset:', err);
-    return { success: false, message: 'Failed to delete some records.' };
-  }
-}
-
 // =========================================================================
 // 7. Emergency & Cognitive Alerts (SOS Alerts Real-Time Dispatch)
 // =========================================================================

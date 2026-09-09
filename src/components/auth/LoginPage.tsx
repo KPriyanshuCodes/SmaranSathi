@@ -6,7 +6,6 @@ import {
   Reminder
 } from '../../types';
 import { 
-  Heart, 
   Sparkles, 
   ShieldCheck, 
   ArrowRight, 
@@ -24,11 +23,10 @@ import {
   Camera,
   Scan,
   Globe,
-  Trash2,
-  AlertTriangle,
   MapPin,
   Compass
 } from 'lucide-react';
+import { AppLogo } from '../common/AppLogo';
 import { FaceLoginModal } from './FaceLoginModal';
 import { FaceRegistrationScanner } from './FaceRegistrationScanner';
 import { soundEffects, speakText } from '../../utils/speechAndAudio';
@@ -39,8 +37,7 @@ import {
   getRememberedUser,
   clearRememberedUser,
   saveReminderToFirebase,
-  linkElderlyToCaregiverInFirebase,
-  deleteAllUsersAndResetDatabase
+  linkElderlyToCaregiverInFirebase
 } from '../../lib/firebase';
 import { LANGUAGE_LABELS } from '../../data/nerContent';
 import { NER_STATES_DATA } from '../../data/nerLocations';
@@ -290,8 +287,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   // Status & Feedback
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [resetModalOpen, setResetModalOpen] = useState(false);
-  const [resetSuccessMessage, setResetSuccessMessage] = useState('');
 
   // Face ID Biometric Authentication States
   const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
@@ -356,26 +351,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     soundEffects.playGentleTap();
     clearRememberedUser();
     setRememberedUserState(null);
-  };
-
-  // Admin Data Reset / Delete All IDs
-  const handleExecuteResetAll = async () => {
-    setLoading(true);
-    try {
-      await deleteAllUsersAndResetDatabase();
-      setRememberedUserState(null);
-      setResetSuccessMessage('All caregiver IDs and patient profiles have been deleted.');
-      soundEffects.playSuccessChime();
-      setTimeout(() => {
-        setResetModalOpen(false);
-        setResetSuccessMessage('');
-        window.location.reload();
-      }, 1500);
-    } catch (e) {
-      setErrorMessage('Failed to delete records.');
-    } finally {
-      setLoading(false);
-    }
   };
 
   // Submit Login
@@ -721,8 +696,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           style={{ background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' }}
           className="rounded-[32px] p-6 sm:p-7 text-center space-y-3 shadow-md border-2 border-[#47D6B6]/40"
         >
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-white/95 text-[#2794EB] shadow-md border-2 border-[#47D6B6] mb-1">
-            <Heart className="w-8 h-8 fill-[#2794EB] text-[#2794EB]" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-white/95 shadow-md border-2 border-[#47D6B6] mb-1 p-2">
+            <AppLogo className="w-12 h-12" animate />
           </div>
           <div className="space-y-1.5">
             <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight flex items-center justify-center gap-2.5 flex-wrap">
@@ -1531,62 +1506,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           </div>
         </div>
 
-        {/* Data Reset Footer Button (Admin / Privacy Purge) */}
-        <div className="text-center pt-2">
-          <button
-            type="button"
-            onClick={() => setResetModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-700 text-xs font-bold transition-colors cursor-pointer border border-slate-200 hover:border-rose-300 shadow-2xs"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Reset Database & Clear All IDs</span>
-          </button>
-        </div>
-
       </div>
-
-      {/* Confirmation Modal for Resetting All IDs */}
-      {resetModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 border-2 border-rose-300 shadow-xl space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-600 mx-auto">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-
-            <div className="text-center space-y-1.5">
-              <h3 className="text-lg font-black text-slate-900">Delete All IDs & Reset Data?</h3>
-              <p className="text-xs text-slate-600 font-bold">
-                This will completely remove all registered caregiver IDs, patient profiles, reminders, and cached sessions from Firestore and local device storage.
-              </p>
-            </div>
-
-            {resetSuccessMessage ? (
-              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-black text-center">
-                {resetSuccessMessage}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setResetModalOpen(false)}
-                  disabled={loading}
-                  className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black cursor-pointer transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExecuteResetAll}
-                  disabled={loading}
-                  className="py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black cursor-pointer transition-colors shadow-xs"
-                >
-                  {loading ? 'Deleting...' : 'Yes, Delete All'}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Face ID Login Modal */}
       <FaceLoginModal

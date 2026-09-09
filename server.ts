@@ -946,45 +946,6 @@ app.get('/api/users', (_req: Request, res: Response) => {
   res.json({ users });
 });
 
-// Delete all users & reset database data (Admin / Privacy Purge)
-app.delete('/api/users', (_req: Request, res: Response) => {
-  users.length = 0;
-  caregiverLinks.length = 0;
-  gameSessions.length = 0;
-  reminders.length = 0;
-  alerts.length = 0;
-  memoryJournals.length = 0;
-  medicationSchedules.length = 0;
-  saveUsersToDisk([]);
-  saveGameSessionsToDisk([]);
-  saveRemindersToDisk([]);
-  try {
-    if (fs.existsSync(USERS_FILE)) fs.unlinkSync(USERS_FILE);
-    if (fs.existsSync(SESSIONS_FILE)) fs.unlinkSync(SESSIONS_FILE);
-    if (fs.existsSync(REMINDERS_FILE)) fs.unlinkSync(REMINDERS_FILE);
-  } catch (e) {}
-  res.json({ success: true, message: 'All users and IDs cleared' });
-});
-
-app.post('/api/admin/clear-all-users', (_req: Request, res: Response) => {
-  users.length = 0;
-  caregiverLinks.length = 0;
-  gameSessions.length = 0;
-  reminders.length = 0;
-  alerts.length = 0;
-  memoryJournals.length = 0;
-  medicationSchedules.length = 0;
-  saveUsersToDisk([]);
-  saveGameSessionsToDisk([]);
-  saveRemindersToDisk([]);
-  try {
-    if (fs.existsSync(USERS_FILE)) fs.unlinkSync(USERS_FILE);
-    if (fs.existsSync(SESSIONS_FILE)) fs.unlinkSync(SESSIONS_FILE);
-    if (fs.existsSync(REMINDERS_FILE)) fs.unlinkSync(REMINDERS_FILE);
-  } catch (e) {}
-  res.json({ success: true, message: 'All user data cleared from disk and memory' });
-});
-
 // Get registered caregivers
 app.get('/api/caregivers', (_req: Request, res: Response) => {
   const caregivers = users.filter(u => u.role === 'caregiver');
