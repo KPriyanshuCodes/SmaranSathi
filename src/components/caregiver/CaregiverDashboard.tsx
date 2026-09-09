@@ -40,7 +40,8 @@ import {
   BarChart2,
   Check,
   Palette,
-  Globe
+  Globe,
+  Download
 } from 'lucide-react';
 import { 
   User, 
@@ -61,6 +62,7 @@ import { IntegratedCareView } from '../care/IntegratedCareView';
 import { ConsultationPortalView } from '../consultation/ConsultationPortalView';
 import { ScheduleRemindersManager } from './ScheduleRemindersManager';
 import { soundEffects } from '../../utils/speechAndAudio';
+import { downloadPhoto } from '../../utils/downloadPhoto';
 import { CAREGIVER_TRANSLATIONS } from '../../data/caregiverTranslations';
 import { LANGUAGE_LABELS } from '../../data/nerContent';
 
@@ -855,7 +857,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                         🤖 AI Neuropsychology Game Prescription
                       </h3>
                       <span className="text-[10px] font-black uppercase tracking-wider bg-[#2794EB] text-white px-2.5 py-0.5 rounded-full shadow-2xs">
-                        Gemini 3.8 Flash
+                        Smart AI
                       </span>
                     </div>
                     <p className="text-xs text-slate-600 font-bold">
@@ -877,10 +879,10 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                       onClick={handleRefreshAI}
                       disabled={isRefreshingAI}
                       className="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-[#2794EB] border border-[#47D6B6] text-xs font-black flex items-center gap-2 transition-all cursor-pointer shadow-2xs active:scale-95 disabled:opacity-60"
-                      title="Run real-time Gemini AI re-analysis on patient logs"
+                      title="Run real-time AI re-analysis on patient logs"
                     >
                       <Sparkles className={`w-4 h-4 ${isRefreshingAI ? 'animate-spin' : ''}`} />
-                      <span>{isRefreshingAI ? 'Re-Analyzing...' : 'Re-Run Gemini AI'}</span>
+                      <span>{isRefreshingAI ? 'Re-Analyzing...' : 'Re-Run AI Analysis'}</span>
                     </button>
                   )}
                 </div>
@@ -1584,13 +1586,26 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                   </div>
                 </div>
 
-                <button
-                  onClick={() => onDeleteFamiliarPerson(person.id)}
-                  className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
-                  title="Remove person"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => {
+                      soundEffects.playGentleTap();
+                      downloadPhoto(person.photo_url, `${person.name.toLowerCase().replace(/\s+/g, '-')}-${person.relation.toLowerCase().replace(/\s+/g, '-')}.jpg`);
+                      soundEffects.playSuccessChime();
+                    }}
+                    className="p-2 rounded-xl text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 cursor-pointer transition-colors"
+                    title="Download family photograph"
+                  >
+                    <Download className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => onDeleteFamiliarPerson(person.id)}
+                    className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition-colors"
+                    title="Remove person"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

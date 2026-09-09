@@ -17,10 +17,16 @@ import {
   Music,
   Camera,
   Play,
-  Pause
+  Pause,
+  Download,
+  Check,
+  Locate,
+  Loader2
 } from 'lucide-react';
 import { MemoryJournalEntry, RegionalLanguage } from '../../types';
 import { soundEffects } from '../../utils/soundEffects';
+import { downloadPhoto } from '../../utils/downloadPhoto';
+import { autoDetectLocation } from '../../utils/locationDetector';
 
 interface MemoryJournalModalProps {
   isOpen: boolean;
@@ -65,6 +71,22 @@ export const MemoryJournalModal: React.FC<MemoryJournalModalProps> = ({
   const [mediaUrl, setMediaUrl] = useState('');
   const [locationTag, setLocationTag] = useState('Guwahati, Assam');
   const [emotion, setEmotion] = useState<'joy' | 'peaceful' | 'nostalgic' | 'reflective'>('nostalgic');
+  const [isDetectingLoc, setIsDetectingLoc] = useState(false);
+
+  const handleAutoDetectLocationTag = async () => {
+    setIsDetectingLoc(true);
+    try {
+      const loc = await autoDetectLocation();
+      if (loc) {
+        setLocationTag(`${loc.cityName}, ${loc.stateName}`);
+        soundEffects.playGentleTap();
+      }
+    } catch (e) {
+      console.warn(e);
+    } finally {
+      setIsDetectingLoc(false);
+    }
+  };
 
   const fetchJournals = async () => {
     try {
@@ -297,9 +319,30 @@ export const MemoryJournalModal: React.FC<MemoryJournalModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-black text-gray-700 uppercase tracking-wide mb-1">
-                    Place / Regional Landmark
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-black text-gray-700 uppercase tracking-wide">
+                      Place / Regional Landmark
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleAutoDetectLocationTag}
+                      disabled={isDetectingLoc}
+                      className="text-[10px] font-black text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2 py-0.5 rounded-full flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Auto-detect current location"
+                    >
+                      {isDetectingLoc ? (
+                        <>
+                          <Loader2 className="w-2.5 h-2.5 animate-spin text-amber-700" />
+                          <span>Detecting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Locate className="w-2.5 h-2.5 text-amber-700" />
+                          <span>Auto-Detect</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                   <div className="relative">
                     <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-amber-600" />
                     <input
@@ -460,13 +503,26 @@ export const MemoryJournalModal: React.FC<MemoryJournalModalProps> = ({
                 >
                   {/* Photo Thumbnail if available */}
                   {item.media_url && (
-                    <div className="sm:w-36 sm:h-36 h-48 rounded-xl overflow-hidden shrink-0 border border-amber-200 bg-amber-50">
+                    <div className="relative group sm:w-36 sm:h-36 h-48 rounded-xl overflow-hidden shrink-0 border border-amber-200 bg-amber-50">
                       <img
                         src={item.media_url}
                         alt={item.title}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                         referrerPolicy="no-referrer"
                       />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          soundEffects.playGentleTap();
+                          downloadPhoto(item.media_url!, `memory-${item.title.toLowerCase().replace(/\s+/g, '-')}.jpg`);
+                          soundEffects.playSuccessChime();
+                        }}
+                        className="absolute bottom-2 right-2 bg-amber-900/80 hover:bg-amber-900 text-white p-1.5 rounded-lg shadow backdrop-blur-xs flex items-center gap-1 text-[10px] font-black cursor-pointer transition-all opacity-90 group-hover:opacity-100"
+                        title="Download photograph"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Save</span>
+                      </button>
                     </div>
                   )}
 

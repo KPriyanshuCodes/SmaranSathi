@@ -37,6 +37,7 @@ import { EditProfileModal } from './components/profile/EditProfileModal';
 import { CaregiverSOSAlertModal } from './components/caregiver/CaregiverSOSAlertModal';
 import { isReminderDue, getTriggerKey, calculateSnoozeTime } from './utils/reminderScheduler';
 import { recordLevelCompletion } from './utils/gameProgress';
+import { autoDetectLocation } from './utils/locationDetector';
 import { 
   getAllUsersFromFirebase, 
   saveUserToFirebase,
@@ -57,7 +58,8 @@ import {
   linkElderlyToCaregiverInFirebase,
   saveAlertToFirebase,
   resolveAlertInFirebase,
-  subscribeToCaregiverAlerts
+  subscribeToCaregiverAlerts,
+  logOutFirebaseUser
 } from './lib/firebase';
 
 export default function App() {
@@ -289,7 +291,7 @@ export default function App() {
     }
   };
 
-  // On-demand Gemini AI recommendation refresh
+  // On-demand AI recommendation refresh
   const handleRefreshRecommendation = async (patientId?: string) => {
     const targetId = patientId || (currentUser?.role === 'elderly' ? currentUser.id : currentPatientUser?.id);
     if (!targetId) return;
@@ -465,6 +467,7 @@ export default function App() {
 
   // Handle Logout (Clears remembered session)
   const handleLogout = () => {
+    logOutFirebaseUser().catch(() => {});
     clearRememberedUser();
     setCurrentUser(null);
     setSelectedPatientId(null);
@@ -631,6 +634,27 @@ export default function App() {
     if (!currentUser) return;
     const caregiverId = assignedCaregiverForElderly?.id || currentUser.connected_caregiver_id;
     const alertId = `alt-${Date.now()}`;
+
+    // Automatically identify live location for emergency telemetry
+    let alertLat = 26.1856;
+    let alertLng = 91.7539;
+    let locLabel = currentUser.location || 'Assam, North East India';
+
+    try {
+      const liveLoc = await autoDetectLocation();
+      if (liveLoc) {
+        if (liveLoc.coords) {
+          alertLat = liveLoc.coords.latitude;
+          alertLng = liveLoc.coords.longitude;
+        }
+        if (liveLoc.cityName && liveLoc.stateName) {
+          locLabel = `${liveLoc.cityName}, ${liveLoc.stateName}`;
+        }
+      }
+    } catch (locErr) {
+      console.warn('Live location SOS detection fallback:', locErr);
+    }
+
     const newAlert: Alert = {
       id: alertId,
       user_id: currentUser.id,
@@ -638,11 +662,11 @@ export default function App() {
       caregiver_id: caregiverId,
       type: 'sos',
       severity: 'high',
-      message: `🚨 Urgent: ${currentUser.name} pressed the SOS assistance button in ${currentUser.location || 'Assam'}. Assigned caregiver (${assignedCaregiverName}) notified.`,
+      message: `🚨 Urgent: ${currentUser.name} pressed the SOS assistance button in ${locLabel}. Assigned caregiver (${assignedCaregiverName}) notified.`,
       triggered_at: new Date().toISOString(),
       resolved: false,
-      lat: 26.1856,
-      lng: 91.7539,
+      lat: alertLat,
+      lng: alertLng,
     };
 
     setAlerts((prev) => [newAlert, ...prev]);

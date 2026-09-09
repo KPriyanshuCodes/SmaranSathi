@@ -102,7 +102,7 @@ export const GameFeedbackModal: React.FC<GameFeedbackModalProps> = ({
               </div>
               {recommendation.ai_powered && (
                 <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-200/70 text-emerald-950 px-2 py-0.5 rounded-full">
-                  Gemini AI
+                  AI Companion
                 </span>
               )}
             </div>

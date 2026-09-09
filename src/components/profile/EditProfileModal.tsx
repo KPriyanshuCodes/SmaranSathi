@@ -19,13 +19,19 @@ import {
   Scan,
   CheckCircle2,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  Download,
+  Locate,
+  Navigation,
+  Loader2
 } from 'lucide-react';
 import { FaceRegistrationScanner } from '../auth/FaceRegistrationScanner';
 import { User, RegionalLanguage, DementiaStage } from '../../types';
 import { LANGUAGE_LABELS, UI_TRANSLATIONS } from '../../data/nerContent';
 import { NER_STATES_DATA } from '../../data/nerLocations';
 import { soundEffects } from '../../utils/speechAndAudio';
+import { downloadPhoto } from '../../utils/downloadPhoto';
+import { autoDetectLocation, DetectedLocationResult } from '../../utils/locationDetector';
 import { searchCaregiverByCodeOrName, unlinkElderlyFromCaregiverInFirebase } from '../../lib/firebase';
 
 interface EditProfileModalProps {
@@ -90,6 +96,26 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const [caregiverInputCode, setCaregiverInputCode] = useState('');
   const [caregiverStatusMsg, setCaregiverStatusMsg] = useState('');
   const [isVerifyingCaregiver, setIsVerifyingCaregiver] = useState(false);
+
+  // Automatic Location Identification
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [autoDetectedInfo, setAutoDetectedInfo] = useState<DetectedLocationResult | null>(null);
+
+  const handleAutoDetectLocation = async () => {
+    setIsDetectingLocation(true);
+    try {
+      const result = await autoDetectLocation();
+      if (result) {
+        setLocation(result.formattedLocation || `${result.cityName}, ${result.stateName}`);
+        setAutoDetectedInfo(result);
+        soundEffects.playSuccessChime();
+      }
+    } catch (err) {
+      console.warn('Auto location detection failed:', err);
+    } finally {
+      setIsDetectingLocation(false);
+    }
+  };
 
   // Handle assigning caregiver code
   const handleAssignCaregiver = async () => {
@@ -304,18 +330,34 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    soundEffects.playGentleTap();
-                    setIsFaceScannerOpen(true);
-                  }}
-                  className="py-2.5 px-4 rounded-xl text-white font-black text-xs sm:text-sm inline-flex items-center justify-center gap-2 cursor-pointer shadow-2xs hover:shadow-md transition-all active:scale-98 border border-[#47D6B6]"
-                  style={{ background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' }}
-                >
-                  <Camera className="w-4 h-4 text-white" />
-                  <span>Scan Face to Update Photo & Biometrics</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundEffects.playGentleTap();
+                      setIsFaceScannerOpen(true);
+                    }}
+                    className="py-2.5 px-4 rounded-xl text-white font-black text-xs sm:text-sm inline-flex items-center justify-center gap-2 cursor-pointer shadow-2xs hover:shadow-md transition-all active:scale-98 border border-[#47D6B6]"
+                    style={{ background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' }}
+                  >
+                    <Camera className="w-4 h-4 text-white" />
+                    <span>Scan Face to Update</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundEffects.playGentleTap();
+                      downloadPhoto(avatar, `${(name || 'profile').toLowerCase().replace(/\s+/g, '-')}-photo.jpg`);
+                      soundEffects.playSuccessChime();
+                    }}
+                    className="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm inline-flex items-center justify-center gap-1.5 cursor-pointer border border-slate-300 transition-colors"
+                    title="Download profile photograph"
+                  >
+                    <Download className="w-4 h-4 text-slate-700" />
+                    <span>Download Photo</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -364,16 +406,50 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               </div>
 
               {/* Location (North Eastern Region of India Only) */}
-              <div className="space-y-1.5 p-3 rounded-2xl bg-amber-50/50 border border-amber-200">
-                <div className="flex items-center justify-between">
+              <div className="space-y-2 p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200 shadow-2xs">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <label className="text-xs font-bold text-gray-700 flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5 text-amber-600" />
                     <span>Location (North East Region, India)</span>
                   </label>
-                  <span className="text-[10px] font-black text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded-full">
-                    NER India Only
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleAutoDetectLocation}
+                      disabled={isDetectingLocation}
+                      className="text-[10px] font-black text-amber-950 bg-amber-200 hover:bg-amber-300 px-2.5 py-0.5 rounded-full border border-amber-400 flex items-center gap-1 cursor-pointer transition-all active:scale-95 disabled:opacity-60"
+                      title="Automatically identify current location via GPS/Network"
+                    >
+                      {isDetectingLocation ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin text-amber-800" />
+                          <span>Detecting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Locate className="w-3 h-3 text-amber-800" />
+                          <span>Auto-Detect</span>
+                        </>
+                      )}
+                    </button>
+                    <span className="text-[10px] font-black text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded-full">
+                      NER India Only
+                    </span>
+                  </div>
                 </div>
+
+                {autoDetectedInfo && (
+                  <div className="flex items-center justify-between text-[11px] font-bold text-amber-900 bg-white/90 px-2.5 py-1 rounded-lg border border-amber-300">
+                    <span className="flex items-center gap-1 truncate">
+                      <Navigation className="w-3 h-3 text-amber-600 shrink-0" />
+                      <span>Identified: <strong>{location}</strong></span>
+                    </span>
+                    <span className="text-[9px] uppercase tracking-wider bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded font-black shrink-0 ml-1">
+                      {autoDetectedInfo.source === 'gps' ? 'GPS Live' : 'Auto'}
+                    </span>
+                  </div>
+                )}
+
                 <div className="relative">
                   <input
                     type="text"

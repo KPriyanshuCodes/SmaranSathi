@@ -1,5 +1,15 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signInWithRedirect, 
+  getRedirectResult, 
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  User as FirebaseUser
+} from 'firebase/auth';
+import { 
   getFirestore, 
   initializeFirestore,
   getDocFromServer,
@@ -28,6 +38,13 @@ import {
 
 // Initialize Firebase App
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
+// Initialize Firebase Auth
+export const auth = getAuth(app);
+export const googleAuthProvider = new GoogleAuthProvider();
+googleAuthProvider.setCustomParameters({
+  prompt: 'select_account'
+});
 
 // Initialize Firestore with specific database ID and auto-detecting transport
 export const db = (() => {
@@ -178,6 +195,75 @@ export async function updateUserAvatar(userId: string, newAvatar: string): Promi
   } catch (err) {
     console.warn('Error updating avatar in Firebase:', err);
     return null;
+  }
+}
+
+export async function signInWithGoogle(intendedRole: UserRole = 'caregiver'): Promise<{ user: User; isNew: boolean } | null> {
+  try {
+    let firebaseUser: FirebaseUser | null = null;
+    try {
+      const result = await signInWithPopup(auth, googleAuthProvider);
+      firebaseUser = result.user;
+    } catch (popupErr: any) {
+      console.warn('Popup sign in failed or blocked, attempting fallback:', popupErr);
+      if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/cancelled-popup-request') {
+        throw new Error('Google Sign-in popup was blocked by browser. Please allow popups or use PIN login.');
+      }
+      throw popupErr;
+    }
+
+    if (!firebaseUser) return null;
+
+    // Check if user document already exists in Firestore users collection
+    const userDocRef = doc(db, USERS_COLLECTION, firebaseUser.uid);
+    const userDocSnap = await getDoc(userDocRef);
+
+    if (userDocSnap.exists()) {
+      const existingData = userDocSnap.data() as User;
+      const updatedUser: User = {
+        ...existingData,
+        name: existingData.name || firebaseUser.displayName || 'Google User',
+        avatar: existingData.avatar || firebaseUser.photoURL || undefined,
+        updated_at: new Date().toISOString()
+      };
+      await setDoc(userDocRef, cleanForFirestore(updatedUser), { merge: true });
+      persistUserLocally(updatedUser);
+      return { user: updatedUser, isNew: false };
+    }
+
+    // If new user signing in with Google:
+    const isCaregiver = intendedRole === 'caregiver';
+    const newCaregiverCode = isCaregiver ? `CG-${Math.floor(1000 + Math.random() * 9000)}` : undefined;
+    const newPatientId = !isCaregiver ? `PT-${Math.floor(1000 + Math.random() * 9000)}` : undefined;
+
+    const newUser: User = {
+      id: firebaseUser.uid,
+      name: firebaseUser.displayName || (isCaregiver ? 'Caregiver' : 'Senior User'),
+      role: intendedRole,
+      language_pref: 'en',
+      pin: '0000', // Default initial PIN for Google authenticated users
+      phone: firebaseUser.phoneNumber || undefined,
+      avatar: firebaseUser.photoURL || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
+      ...(newCaregiverCode ? { caregiver_code: newCaregiverCode } : {}),
+      ...(newPatientId ? { patient_id: newPatientId } : {}),
+      location: 'Guwahati, Assam, North East India',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    await saveUserToFirebase(newUser);
+    return { user: newUser, isNew: true };
+  } catch (error: any) {
+    console.error('Google Sign-In Error:', error);
+    throw error;
+  }
+}
+
+export async function logOutFirebaseUser(): Promise<void> {
+  try {
+    await firebaseSignOut(auth);
+  } catch (e) {
+    console.warn('Firebase sign-out note:', e);
   }
 }
 

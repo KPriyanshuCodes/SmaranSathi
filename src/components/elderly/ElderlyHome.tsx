@@ -354,7 +354,7 @@ export const ElderlyHome: React.FC<ElderlyHomeProps> = ({
                     🧠 AI Prescribed Cognitive Game
                   </h3>
                   <span className="text-[10px] font-black uppercase tracking-wider bg-[#2794EB] text-white px-2.5 py-0.5 rounded-full shadow-2xs">
-                    Gemini AI
+                    AI Companion
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 font-bold">

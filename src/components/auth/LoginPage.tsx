@@ -24,12 +24,16 @@ import {
   Scan,
   Globe,
   MapPin,
-  Compass
+  Compass,
+  Locate,
+  Navigation,
+  Loader2
 } from 'lucide-react';
 import { AppLogo } from '../common/AppLogo';
 import { FaceLoginModal } from './FaceLoginModal';
 import { FaceRegistrationScanner } from './FaceRegistrationScanner';
 import { soundEffects, speakText } from '../../utils/speechAndAudio';
+import { autoDetectLocation, DetectedLocationResult } from '../../utils/locationDetector';
 import { 
   findUserByCredentials, 
   saveUserToFirebase, 
@@ -37,7 +41,8 @@ import {
   getRememberedUser,
   clearRememberedUser,
   saveReminderToFirebase,
-  linkElderlyToCaregiverInFirebase
+  linkElderlyToCaregiverInFirebase,
+  signInWithGoogle
 } from '../../lib/firebase';
 import { LANGUAGE_LABELS } from '../../data/nerContent';
 import { NER_STATES_DATA } from '../../data/nerLocations';
@@ -295,7 +300,38 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [registeredFaceDescriptor, setRegisteredFaceDescriptor] = useState<number[] | null>(null);
   const [registeredFacePhoto, setRegisteredFacePhoto] = useState<string | null>(null);
 
+  // Automatic Location Detection State
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [detectedLocationInfo, setDetectedLocationInfo] = useState<DetectedLocationResult | null>(null);
+
   const t = LOGIN_I18N[selectedLang] || LOGIN_I18N.en;
+
+  // Automatically detect location on initial mount / register view
+  const triggerAutoDetectLocation = async (manual: boolean = false) => {
+    setIsDetectingLocation(true);
+    try {
+      const result = await autoDetectLocation();
+      if (result && result.stateName && result.cityName) {
+        setElderlyState(result.stateName);
+        setElderlyCity(result.cityName);
+        setCaregiverState(result.stateName);
+        setCaregiverCity(result.cityName);
+        setDetectedLocationInfo(result);
+        if (manual) {
+          soundEffects.playSuccessChime();
+        }
+      }
+    } catch (err) {
+      console.warn('Auto location detection note:', err);
+    } finally {
+      setIsDetectingLocation(false);
+    }
+  };
+
+  useEffect(() => {
+    // Automatically identify location in background
+    triggerAutoDetectLocation(false);
+  }, []);
 
   // Check for remembered user on mount
   useEffect(() => {
@@ -351,6 +387,31 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     soundEffects.playGentleTap();
     clearRememberedUser();
     setRememberedUserState(null);
+  };
+
+  // Google Sign-In with Firebase Auth
+  const handleGoogleSignIn = async () => {
+    setErrorMessage('');
+    setLoading(true);
+    try {
+      const result = await signInWithGoogle(activeTab);
+      if (result && result.user) {
+        soundEffects.playSuccessChime();
+        if (rememberMe) {
+          saveRememberedUser(result.user);
+        }
+        if (result.isNew && result.user.role === 'elderly') {
+          await seedInitialUserReminders(result.user);
+        }
+        onLogin(result.user);
+      }
+    } catch (err: any) {
+      console.warn('Google Sign-in failed:', err);
+      setErrorMessage(err?.message || 'Google Sign-in was cancelled or encountered an issue. You can also sign in with your PIN.');
+      soundEffects.playGentleEncouragement();
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Submit Login
@@ -916,6 +977,34 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   <span>{t.face_id_login_btn}</span>
                 </button>
 
+                {/* Google Sign-in with Firebase Auth */}
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={loading}
+                  className="w-full min-h-[52px] rounded-2xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-sm sm:text-base flex items-center justify-center gap-3 border-2 border-slate-200 shadow-2xs hover:border-slate-300 active:scale-98 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                    />
+                  </svg>
+                  <span>Sign in securely with Google</span>
+                </button>
+
                 <div className="relative flex py-0.5 items-center">
                   <div className="flex-grow border-t border-slate-200"></div>
                   <span className="flex-shrink mx-3 text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -1041,18 +1130,51 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   </div>
                 </div>
 
-                {/* Location Picker (North Eastern Region of India Only) */}
+                {/* Location Picker (North Eastern Region of India Only) with Auto-Detection */}
                 <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-50/80 to-teal-50/80 border-2 border-emerald-300/90 space-y-2.5 shadow-2xs">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <label className="text-xs font-black text-[#1E293B] flex items-center gap-1.5">
                       <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
                       <span>{t.location_section_title}:</span>
                     </label>
-                    <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
-                      <Compass className="w-3 h-3 text-emerald-600" />
-                      {t.location_region_badge}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => triggerAutoDetectLocation(true)}
+                        disabled={isDetectingLocation}
+                        className="text-[10px] font-black text-emerald-950 bg-emerald-200 hover:bg-emerald-300 px-2.5 py-1 rounded-full border border-emerald-400 flex items-center gap-1 cursor-pointer transition-all active:scale-95 disabled:opacity-60 shadow-2xs"
+                        title="Automatically identify your location using GPS/Network"
+                      >
+                        {isDetectingLocation ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin text-emerald-800" />
+                            <span>Detecting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Locate className="w-3 h-3 text-emerald-800" />
+                            <span>Auto-Detect Location</span>
+                          </>
+                        )}
+                      </button>
+                      <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 hidden sm:inline-flex items-center gap-1">
+                        <Compass className="w-3 h-3 text-emerald-600" />
+                        {t.location_region_badge}
+                      </span>
+                    </div>
                   </div>
+
+                  {detectedLocationInfo && (
+                    <div className="flex items-center justify-between text-[11px] font-bold text-emerald-800 bg-white/80 px-2.5 py-1 rounded-lg border border-emerald-200">
+                      <span className="flex items-center gap-1 truncate">
+                        <Navigation className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span>Identified: <strong>{elderlyCity}, {elderlyState}</strong></span>
+                      </span>
+                      <span className="text-[9px] uppercase tracking-wider bg-emerald-100 text-emerald-900 px-1.5 py-0.2 rounded font-black shrink-0 ml-1">
+                        {detectedLocationInfo.source === 'gps' ? 'GPS Live' : 'Auto'}
+                      </span>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div className="space-y-1">
@@ -1069,7 +1191,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                             setElderlyCity(stateObj.major_cities[0]);
                           }
                         }}
-                        className="w-full min-h-[46px] px-3 text-xs sm:text-sm font-bold bg-white text-[#1E293B] border-2 border-emerald-400 focus:border-emerald-500 rounded-xl outline-none shadow-2xs"
+                        className="w-full min-h-[46px] px-3 text-xs sm:text-sm font-bold bg-white text-[#1E293B] border-2 border-emerald-400 focus:border-emerald-500 rounded-xl outline-none shadow-2xs cursor-pointer"
                       >
                         {NER_STATES_DATA.map((st) => (
                           <option key={st.code} value={st.name}>
@@ -1086,7 +1208,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                       <select
                         value={elderlyCity}
                         onChange={(e) => setElderlyCity(e.target.value)}
-                        className="w-full min-h-[46px] px-3 text-xs sm:text-sm font-bold bg-white text-[#1E293B] border-2 border-emerald-400 focus:border-emerald-500 rounded-xl outline-none shadow-2xs"
+                        className="w-full min-h-[46px] px-3 text-xs sm:text-sm font-bold bg-white text-[#1E293B] border-2 border-emerald-400 focus:border-emerald-500 rounded-xl outline-none shadow-2xs cursor-pointer"
                       >
                         {NER_STATES_DATA.find(s => s.name === elderlyState)?.major_cities.map((city) => (
                           <option key={city} value={city}>
@@ -1217,6 +1339,34 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 >
                   <Scan className="w-6 h-6 text-white" />
                   <span>{t.face_id_login_btn}</span>
+                </button>
+
+                {/* Google Sign-in with Firebase Auth */}
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={loading}
+                  className="w-full min-h-[52px] rounded-2xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-sm sm:text-base flex items-center justify-center gap-3 border-2 border-slate-200 shadow-2xs hover:border-slate-300 active:scale-98 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                    />
+                  </svg>
+                  <span>Sign in securely with Google</span>
                 </button>
 
                 <div className="relative flex py-0.5 items-center">
@@ -1357,18 +1507,51 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   </select>
                 </div>
 
-                {/* Location Picker (North Eastern Region of India Only) */}
+                {/* Location Picker (North Eastern Region of India Only) with Auto-Detection */}
                 <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-50/80 to-teal-50/80 border-2 border-emerald-300/90 space-y-2.5 shadow-2xs">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <label className="text-xs font-black text-[#1E293B] flex items-center gap-1.5">
                       <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
                       <span>{t.location_section_title}:</span>
                     </label>
-                    <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
-                      <Compass className="w-3 h-3 text-emerald-600" />
-                      {t.location_region_badge}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => triggerAutoDetectLocation(true)}
+                        disabled={isDetectingLocation}
+                        className="text-[10px] font-black text-emerald-950 bg-emerald-200 hover:bg-emerald-300 px-2.5 py-1 rounded-full border border-emerald-400 flex items-center gap-1 cursor-pointer transition-all active:scale-95 disabled:opacity-60 shadow-2xs"
+                        title="Automatically identify your location using GPS/Network"
+                      >
+                        {isDetectingLocation ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin text-emerald-800" />
+                            <span>Detecting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Locate className="w-3 h-3 text-emerald-800" />
+                            <span>Auto-Detect Location</span>
+                          </>
+                        )}
+                      </button>
+                      <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 hidden sm:inline-flex items-center gap-1">
+                        <Compass className="w-3 h-3 text-emerald-600" />
+                        {t.location_region_badge}
+                      </span>
+                    </div>
                   </div>
+
+                  {detectedLocationInfo && (
+                    <div className="flex items-center justify-between text-[11px] font-bold text-emerald-800 bg-white/80 px-2.5 py-1 rounded-lg border border-emerald-200">
+                      <span className="flex items-center gap-1 truncate">
+                        <Navigation className="w-3 h-3 text-emerald-600 shrink-0" />
+                        <span>Identified: <strong>{caregiverCity}, {caregiverState}</strong></span>
+                      </span>
+                      <span className="text-[9px] uppercase tracking-wider bg-emerald-100 text-emerald-900 px-1.5 py-0.2 rounded font-black shrink-0 ml-1">
+                        {detectedLocationInfo.source === 'gps' ? 'GPS Live' : 'Auto'}
+                      </span>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div className="space-y-1">
@@ -1385,7 +1568,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                             setCaregiverCity(stateObj.major_cities[0]);
                           }
                         }}
-                        className="w-full min-h-[46px] px-3 text-xs sm:text-sm font-bold bg-white text-[#1E293B] border-2 border-emerald-400 focus:border-emerald-500 rounded-xl outline-none shadow-2xs"
+                        className="w-full min-h-[46px] px-3 text-xs sm:text-sm font-bold bg-white text-[#1E293B] border-2 border-emerald-400 focus:border-emerald-500 rounded-xl outline-none shadow-2xs cursor-pointer"
                       >
                         {NER_STATES_DATA.map((st) => (
                           <option key={st.code} value={st.name}>
@@ -1402,7 +1585,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                       <select
                         value={caregiverCity}
                         onChange={(e) => setCaregiverCity(e.target.value)}
-                        className="w-full min-h-[46px] px-3 text-xs sm:text-sm font-bold bg-white text-[#1E293B] border-2 border-emerald-400 focus:border-emerald-500 rounded-xl outline-none shadow-2xs"
+                        className="w-full min-h-[46px] px-3 text-xs sm:text-sm font-bold bg-white text-[#1E293B] border-2 border-emerald-400 focus:border-emerald-500 rounded-xl outline-none shadow-2xs cursor-pointer"
                       >
                         {NER_STATES_DATA.find(s => s.name === caregiverState)?.major_cities.map((city) => (
                           <option key={city} value={city}>

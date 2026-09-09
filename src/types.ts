@@ -31,6 +31,8 @@ export interface User {
   onboarded?: boolean;
   face_descriptor?: number[] | null;
   face_registered_at?: string | null;
+  email?: string;
+  updated_at?: string;
 }
 
 export interface CaregiverLink {
@@ -260,7 +262,7 @@ export interface AIRecommendation {
   has_gaming_data?: boolean;
   total_games_analyzed?: number;
   
-  // Gemini AI Cognitive Intelligence Fields
+  // AI Cognitive Intelligence Fields
   ai_powered?: boolean;
   clinical_reasoning?: string;
   cognitive_focus_domain?: string;

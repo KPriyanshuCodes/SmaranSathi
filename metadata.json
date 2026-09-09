@@ -1,6 +1,6 @@
 {
   "name": "Smaran Sathi - Cognitive Gaming & Memory Companion",
   "description": "Smaran Sathi (हर कदम पर आपका हमसफ़र) - AI-powered cognitive gaming and memory assistance platform designed for elderly dementia patients in North Eastern India, featuring culturally resonant games, voice guidance, and caregiver analytics.",
-  "requestFramePermissions": ["microphone", "camera"],
+  "requestFramePermissions": ["microphone", "camera", "geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
