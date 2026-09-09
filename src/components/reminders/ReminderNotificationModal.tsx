@@ -58,7 +58,7 @@ export const ReminderNotificationModal: React.FC<ReminderNotificationModalProps>
     setIsPlayingAudio(true);
     const spokenText = reminder.spoken_prompt || 
       (reminder.type === 'medication'
-        ? `${patientName ? patientName + ', ' : ''}it is time for your medicine: ${reminder.title} at ${reminder.time}. Scheduled by your caregiver ${reminder.created_by || 'Dr. Priya Barua'}. ${reminder.instructions || 'Please take it with water.'}`
+        ? `${patientName ? patientName + ', ' : ''}it is time for your medicine: ${reminder.title} at ${reminder.time}. Scheduled by your caregiver ${reminder.created_by || 'Caregiver'}. ${reminder.instructions || 'Please take it with water.'}`
         : `${patientName ? patientName + ', ' : ''}it is time for ${reminder.title}. ${reminder.instructions || ''}`);
 
     cleanupAudioRef.current = triggerReminderAudioAlarm(

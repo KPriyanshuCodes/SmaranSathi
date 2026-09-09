@@ -6,8 +6,32 @@ import { soundEffects } from '../../utils/speechAndAudio';
 interface FaceRegistrationScannerProps {
   isOpen: boolean;
   onClose: () => void;
-  onFaceCaptured: (descriptor: number[]) => void;
+  onFaceCaptured: (descriptor: number[], photoDataUrl?: string) => void;
   userName?: string;
+}
+
+// Helper to capture a centered, mirrored square photo from the video feed
+function captureFaceSnapshot(video: HTMLVideoElement): string | null {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 320;
+    canvas.height = 320;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const vw = video.videoWidth || 640;
+    const vh = video.videoHeight || 480;
+    const size = Math.min(vw, vh);
+    const sx = (vw - size) / 2;
+    const sy = (vh - size) / 2;
+    // Mirror horizontally so it matches the selfie preview
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, sx, sy, size, size, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.85);
+  } catch (e) {
+    console.warn('Failed to capture face photo snapshot:', e);
+    return null;
+  }
 }
 
 export const FaceRegistrationScanner: React.FC<FaceRegistrationScannerProps> = ({
@@ -126,12 +150,14 @@ export const FaceRegistrationScanner: React.FC<FaceRegistrationScannerProps> = (
       if (result.status === 'face_found' && result.descriptor) {
         setCaptured(true);
         setStatusType('success');
-        setStatusMessage('Face biometric descriptor generated successfully (128 values)!');
+        setStatusMessage('Face biometric descriptor generated successfully! Profile photo updated.');
         soundEffects.playSuccessChime();
+
+        const photoDataUrl = videoRef.current ? captureFaceSnapshot(videoRef.current) : null;
 
         setTimeout(() => {
           if (isMountedRef.current) {
-            onFaceCaptured(result.descriptor!);
+            onFaceCaptured(result.descriptor!, photoDataUrl || undefined);
             stopCamera();
             onClose();
           }
@@ -160,7 +186,7 @@ export const FaceRegistrationScanner: React.FC<FaceRegistrationScannerProps> = (
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 bg-slate-900/70 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-md bg-[#FAFAFA] rounded-3xl p-5 border-2 border-[#8DE5A6] shadow-xl space-y-4 relative">
+      <div className="w-full max-w-md bg-[#FAFAFA] rounded-3xl p-5 border-2 border-[#47D6B6] shadow-xl space-y-4 relative">
         <button
           type="button"
           onClick={() => {
@@ -174,11 +200,11 @@ export const FaceRegistrationScanner: React.FC<FaceRegistrationScannerProps> = (
 
         <div className="text-center space-y-1">
           <h3 className="text-xl font-black text-[#1E293B] flex items-center justify-center gap-2">
-            <Camera className="w-5 h-5 text-[#3E82F0]" />
+            <Camera className="w-5 h-5 text-[#2794EB]" />
             <span>Face ID Registration</span>
           </h3>
           <p className="text-xs font-bold text-slate-600">
-            Scanning biometric embedding for <span className="text-[#3E82F0]">{userName}</span>
+            Scanning biometric embedding for <span className="text-[#2794EB] font-black">{userName}</span>
           </p>
         </div>
 
@@ -196,7 +222,7 @@ export const FaceRegistrationScanner: React.FC<FaceRegistrationScannerProps> = (
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="relative w-full aspect-4/3 rounded-2xl overflow-hidden bg-slate-900 border-2 border-[#8DE5A6] flex items-center justify-center">
+            <div className="relative w-full aspect-4/3 rounded-2xl overflow-hidden bg-slate-900 border-2 border-[#47D6B6] flex items-center justify-center">
               <video
                 ref={videoRef}
                 autoPlay
@@ -209,14 +235,14 @@ export const FaceRegistrationScanner: React.FC<FaceRegistrationScannerProps> = (
 
               {!cameraActive && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 text-xs font-bold gap-2">
-                  <RefreshCw className="w-6 h-6 animate-spin text-[#8DE5A6]" />
+                  <RefreshCw className="w-6 h-6 animate-spin text-[#47D6B6]" />
                   <span>Loading camera...</span>
                 </div>
               )}
 
               {cameraActive && !captured && (
                 <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                  <div className="w-44 h-56 rounded-[45%] border-2 border-dashed border-[#8DE5A6] animate-pulse" />
+                  <div className="w-44 h-56 rounded-[45%] border-2 border-dashed border-[#47D6B6] animate-pulse" />
                 </div>
               )}
 
@@ -262,8 +288,8 @@ export const FaceRegistrationScanner: React.FC<FaceRegistrationScannerProps> = (
                 type="button"
                 onClick={handleCapture}
                 disabled={detecting || !cameraActive || captured}
-                style={{ background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' }}
-                className="flex-1 py-2.5 rounded-xl text-[#0F172A] text-xs font-black border border-[#6BC1B8] shadow-xs cursor-pointer disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #2794EB 0%, #17B3C1 50%, #47D6B6 100%)' }}
+                className="flex-1 py-2.5 rounded-xl text-white text-xs font-black border border-[#47D6B6] shadow-xs cursor-pointer disabled:opacity-50"
               >
                 {detecting ? 'Analyzing...' : 'Capture Face'}
               </button>

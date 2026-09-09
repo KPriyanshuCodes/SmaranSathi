@@ -9,10 +9,14 @@ import {
   FamiliarPerson, 
   AIRecommendation, 
   GameSession,
-  LevelFinishResult
+  LevelFinishResult,
+  UIUXSettings,
+  UILayoutMode,
+  UIThemePalette
 } from './types';
 import { Header } from './components/common/Header';
 import { FloatingSOSButton } from './components/common/FloatingSOSButton';
+import { THEME_CONFIGS } from './utils/themeConfig';
 import { ElderlyHome } from './components/elderly/ElderlyHome';
 import { FamiliarPeopleView } from './components/elderly/FamiliarPeopleView';
 import { CaregiverDashboard } from './components/caregiver/CaregiverDashboard';
@@ -76,6 +80,32 @@ export default function App() {
   const [editingTargetUser, setEditingTargetUser] = useState<User | null>(null);
   const [activeCaregiverSOS, setActiveCaregiverSOS] = useState<Alert | null>(null);
   const notifiedSOSIdsRef = useRef<Set<string>>(new Set());
+
+  // Dynamic UI/UX Layout & Themes State with persistent caching
+  const [uiSettings, setUiSettings] = useState<UIUXSettings>(() => {
+    try {
+      const saved = localStorage.getItem('smaran_sathi_ui_settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          layoutMode: 'compact',
+          themePalette: 'default',
+          textScale: parsed.textScale || 'normal',
+          highContrast: !!parsed.highContrast,
+          hapticAudio: parsed.hapticAudio !== false,
+          reducedMotion: !!parsed.reducedMotion,
+        };
+      }
+    } catch (e) {}
+    return {
+      layoutMode: 'compact',
+      themePalette: 'default',
+      textScale: 'normal',
+      highContrast: false,
+      hapticAudio: true,
+      reducedMotion: false,
+    };
+  });
 
   // Sync users with Firebase Firestore and backend on mount, plus restore remembered session
   useEffect(() => {
@@ -256,6 +286,22 @@ export default function App() {
       }
     } catch (e) {
       console.warn('Backend/Firebase load error, using robust in-memory state', e);
+    }
+  };
+
+  // On-demand Gemini AI recommendation refresh
+  const handleRefreshRecommendation = async (patientId?: string) => {
+    const targetId = patientId || (currentUser?.role === 'elderly' ? currentUser.id : currentPatientUser?.id);
+    if (!targetId) return;
+    try {
+      const res = await fetch(`/api/ai/recommendation/${targetId}?refresh=true`);
+      if (res.ok) {
+        const data = await res.json();
+        setRecommendation(data);
+        return data;
+      }
+    } catch (err) {
+      console.error('Failed to refresh AI recommendation', err);
     }
   };
 
@@ -553,7 +599,7 @@ export default function App() {
     assignedCaregiverForElderly?.name ||
     currentUser?.connected_caregiver_name ||
     currentUser?.emergency_contact?.name ||
-    'Dr. Priya Barua';
+    '';
 
   const assignedCaregiverCode =
     assignedCaregiverForElderly?.caregiver_code ||
@@ -867,12 +913,14 @@ export default function App() {
         onLogin={handleLogin}
         users={users}
         onRegisterUser={handleRegisterUser}
+        currentLanguage={currentLanguage}
+        onLanguageChange={setCurrentLanguage}
       />
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8FAFC] text-[#1E293B] font-sans">
+    <div className={`min-h-screen flex flex-col ${THEME_CONFIGS[uiSettings.themePalette]?.bgClass || 'bg-[#F8FAFC]'} ${uiSettings.highContrast ? 'contrast-125' : ''} text-[#1E293B] font-sans transition-colors duration-300`}>
       {/* Top Header with Brand, Center Emergency SOS Button, Regional Language Selector, and User Profile */}
       <Header
         currentUser={currentUser}
@@ -881,6 +929,8 @@ export default function App() {
         onEditProfile={() => handleOpenEditProfile(currentUser)}
         onLogout={handleLogout}
         onTriggerSOS={triggerSOS}
+        themePalette={uiSettings.themePalette}
+        layoutMode={uiSettings.layoutMode}
         patientName={currentPatientUser?.name || currentUser.name}
         contactName={assignedCaregiverName}
       />
@@ -975,6 +1025,7 @@ export default function App() {
               recommendation={recommendation}
               assignedCaregiverName={assignedCaregiverName}
               assignedCaregiverCode={assignedCaregiverCode}
+              layoutMode={uiSettings.layoutMode}
               onSelectGame={(gt) => {
                 setActiveGame(gt);
                 setSelectedLevel(null);
@@ -986,6 +1037,7 @@ export default function App() {
               onTriggerSOS={handleTriggerSOS}
               onToggleReminder={handleToggleReminder}
               onTriggerAlarm={handleTriggerManualAlarm}
+              onRefreshRecommendation={handleRefreshRecommendation}
             />
           )
         ) : (
@@ -994,6 +1046,8 @@ export default function App() {
             caregiverUser={currentUser}
             currentPatient={currentPatientUser}
             allPatients={assignedPatients}
+            language={currentLanguage}
+            onLanguageChange={setCurrentLanguage}
             onSwitchPatient={(patientId) => {
               setSelectedPatientId(patientId);
               loadPatientData(patientId);
@@ -1013,6 +1067,7 @@ export default function App() {
             onOpenJournal={() => setIsJournalOpen(true)}
             onTriggerAlarm={handleTriggerManualAlarm}
             trendData={trendData}
+            onRefreshRecommendation={handleRefreshRecommendation}
           />
         )}
       </main>

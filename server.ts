@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
+import { GoogleGenAI, Type } from '@google/genai';
 import { 
   User, 
   GameSession, 
@@ -31,6 +32,24 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+
+// Server-Side Gemini AI Client initialization
+let geminiClient: GoogleGenAI | null = null;
+function getGeminiClient(): GoogleGenAI | null {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  if (!geminiClient) {
+    geminiClient = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+  }
+  return geminiClient;
+}
 
 // Persistent Local Disk Storage for Users, Reminders & Game Sessions (never lost on server reload)
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -77,68 +96,7 @@ function saveUsersToDisk(usersList: User[]): void {
   }
 }
 
-const DEFAULT_INITIAL_REMINDERS: Reminder[] = [
-  {
-    id: 'rem-1',
-    user_id: 'user-bhaben',
-    type: 'medication',
-    title: 'Amlodipine 5mg & Morning Memory Tonic',
-    time: '08:30 AM',
-    recurrence: 'daily',
-    instructions: 'Take 1 tablet with warm water after morning tea and light breakfast.',
-    completed: true,
-    created_by: 'Dr. Priya Barua',
-    created_at: new Date().toISOString(),
-    priority: 'high',
-    audio_chime: true,
-    spoken_prompt: 'Dadaji, it is time for your morning memory medicine and blood pressure tablet.'
-  },
-  {
-    id: 'rem-2',
-    user_id: 'user-bhaben',
-    type: 'meal',
-    title: 'Afternoon Lunch with Kaji Nemu & Masor Tenga',
-    time: '01:00 PM',
-    recurrence: 'daily',
-    instructions: 'Light sour fish curry with warm rice; stay well hydrated.',
-    completed: false,
-    created_by: 'Dr. Priya Barua',
-    created_at: new Date().toISOString(),
-    priority: 'medium',
-    audio_chime: true,
-    spoken_prompt: 'Lunch is served with warm soup and fish curry. Drink plenty of water.'
-  },
-  {
-    id: 'rem-3',
-    user_id: 'user-bhaben',
-    type: 'exercise',
-    title: 'Courtyard Garden Walk & Tulsi Watering',
-    time: '04:30 PM',
-    recurrence: 'daily',
-    instructions: '15 minutes gentle strolling with walking stick in the courtyard under gentle sun.',
-    completed: false,
-    created_by: 'Dr. Priya Barua',
-    created_at: new Date().toISOString(),
-    priority: 'gentle',
-    audio_chime: true,
-    spoken_prompt: 'Time for your refreshing stroll in the courtyard garden.'
-  },
-  {
-    id: 'rem-4',
-    user_id: 'user-bhaben',
-    type: 'appointment',
-    title: 'Dr. Hazarika Clinic Visit (Silpukhuri)',
-    time: '11:00 AM',
-    recurrence: 'weekly',
-    instructions: 'Monthly memory review and blood pressure checkup with cognitive log.',
-    completed: false,
-    created_by: 'Dr. Priya Barua',
-    created_at: new Date().toISOString(),
-    priority: 'high',
-    audio_chime: true,
-    spoken_prompt: 'Doctor consultation scheduled today for routine wellness review.'
-  }
-];
+const DEFAULT_INITIAL_REMINDERS: Reminder[] = [];
 
 function loadRemindersFromDisk(): Reminder[] {
   try {
@@ -148,14 +106,14 @@ function loadRemindersFromDisk(): Reminder[] {
     if (fs.existsSync(REMINDERS_FILE)) {
       const raw = fs.readFileSync(REMINDERS_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
   } catch (err) {
     console.warn('Could not load reminders from disk:', err);
   }
-  return DEFAULT_INITIAL_REMINDERS;
+  return [];
 }
 
 function saveRemindersToDisk(remList: Reminder[]): void {
@@ -180,100 +138,8 @@ interface CaregiverLink {
 const users: User[] = loadUsersFromDisk();
 const caregiverLinks: CaregiverLink[] = [];
 
-// Historical seed game sessions to power cognitive analysis out of the box
-const INITIAL_SEED_SESSIONS: GameSession[] = [
-  {
-    id: 'sess-1',
-    user_id: 'user-bhaben',
-    game_type: 'memory_match',
-    accuracy: 90,
-    response_time: 4.8,
-    attempts: 7,
-    mistakes: 1,
-    completion_rate: 100,
-    difficulty_level: 'easy',
-    stars: 3,
-    completed_at: new Date(Date.now() - 6 * 86400000).toISOString(),
-  },
-  {
-    id: 'sess-2',
-    user_id: 'user-bhaben',
-    game_type: 'picture_recognition',
-    accuracy: 85,
-    response_time: 5.2,
-    attempts: 4,
-    mistakes: 1,
-    completion_rate: 100,
-    difficulty_level: 'easy',
-    stars: 3,
-    completed_at: new Date(Date.now() - 5 * 86400000).toISOString(),
-  },
-  {
-    id: 'sess-3',
-    user_id: 'user-bhaben',
-    game_type: 'sequence_recall',
-    accuracy: 80,
-    response_time: 5.8,
-    attempts: 5,
-    mistakes: 2,
-    completion_rate: 100,
-    difficulty_level: 'easy',
-    stars: 2,
-    completed_at: new Date(Date.now() - 4 * 86400000).toISOString(),
-  },
-  {
-    id: 'sess-4',
-    user_id: 'user-bhaben',
-    game_type: 'memory_match',
-    accuracy: 95,
-    response_time: 4.2,
-    attempts: 6,
-    mistakes: 0,
-    completion_rate: 100,
-    difficulty_level: 'easy',
-    stars: 3,
-    completed_at: new Date(Date.now() - 3 * 86400000).toISOString(),
-  },
-  {
-    id: 'sess-5',
-    user_id: 'user-bhaben',
-    game_type: 'simple_puzzle',
-    accuracy: 88,
-    response_time: 6.4,
-    attempts: 4,
-    mistakes: 1,
-    completion_rate: 100,
-    difficulty_level: 'easy',
-    stars: 3,
-    completed_at: new Date(Date.now() - 2 * 86400000).toISOString(),
-  },
-  {
-    id: 'sess-6',
-    user_id: 'user-bhaben',
-    game_type: 'face_match',
-    accuracy: 100,
-    response_time: 3.6,
-    attempts: 3,
-    mistakes: 0,
-    completion_rate: 100,
-    difficulty_level: 'easy',
-    stars: 3,
-    completed_at: new Date(Date.now() - 1 * 86400000).toISOString(),
-  },
-  {
-    id: 'sess-7',
-    user_id: 'user-bhaben',
-    game_type: 'picture_recognition',
-    accuracy: 92,
-    response_time: 4.0,
-    attempts: 4,
-    mistakes: 0,
-    completion_rate: 100,
-    difficulty_level: 'medium',
-    stars: 3,
-    completed_at: new Date(Date.now() - 0.3 * 86400000).toISOString(),
-  },
-];
+// Clean initial sessions (populated genuinely through gameplay)
+const INITIAL_SEED_SESSIONS: GameSession[] = [];
 
 function loadGameSessionsFromDisk(): GameSession[] {
   try {
@@ -283,32 +149,14 @@ function loadGameSessionsFromDisk(): GameSession[] {
     if (fs.existsSync(SESSIONS_FILE)) {
       const raw = fs.readFileSync(SESSIONS_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
   } catch (err) {
     console.warn('Could not load game sessions from disk:', err);
   }
-
-  // Seed baseline sessions for existing registered elderly patients so they have authentic gaming data
-  const seeded: GameSession[] = [...INITIAL_SEED_SESSIONS];
-  users.forEach(u => {
-    if (u.role === 'elderly' && u.id !== 'user-bhaben') {
-      INITIAL_SEED_SESSIONS.forEach((s, idx) => {
-        seeded.push({
-          ...s,
-          id: `sess-${u.id}-${idx + 1}`,
-          user_id: u.id,
-          accuracy: Math.min(100, Math.max(70, s.accuracy + ((idx % 3) - 1) * 3)),
-          response_time: Number((s.response_time + ((idx % 2 === 0) ? 0.2 : -0.2)).toFixed(1)),
-        });
-      });
-    }
-  });
-
-  saveGameSessionsToDisk(seeded);
-  return seeded;
+  return [];
 }
 
 function saveGameSessionsToDisk(sessionsList: GameSession[]): void {
@@ -350,103 +198,15 @@ let reminders: Reminder[] = loadRemindersFromDisk();
 
 let familiarPeople: FamiliarPerson[] = [...FAMILIAR_PEOPLE_SEED];
 
-let alerts: Alert[] = [
-  {
-    id: 'alt-1',
-    user_id: 'user-bhaben',
-    patient_name: 'Bhaben Barua (Dadaji)',
-    type: 'missed_reminder',
-    message: 'Afternoon hydration reminder was acknowledged 25 minutes late yesterday.',
-    triggered_at: new Date(Date.now() - 26 * 3600000).toISOString(),
-    resolved: true,
-    resolved_at: new Date(Date.now() - 25 * 3600000).toISOString(),
-  }
-];
+let alerts: Alert[] = [];
 
 // -------------------------------------------------------------
 // Extended Ecosystem In-Memory Stores
 // -------------------------------------------------------------
 
-let memoryJournals: MemoryJournalEntry[] = [
-  {
-    id: 'mj-1',
-    user_id: 'user-bhaben',
-    title: 'Morning Ferry Across Brahmaputra to Umananda',
-    content: 'Dadaji recalled taking the green ferry across the Brahmaputra with his father in 1968. He remembered the mist over the peacock island and the sound of morning conch shells at Umananda temple.',
-    media_type: 'photo',
-    media_url: 'https://images.unsplash.com/photo-1609137144822-4a00ec277717?auto=format&fit=crop&w=600&q=80',
-    location_tag: 'Guwahati, Assam',
-    emotion: 'nostalgic',
-    created_at: new Date(Date.now() - 2 * 86400000).toISOString()
-  },
-  {
-    id: 'mj-2',
-    user_id: 'user-bhaben',
-    title: 'Autumn Bihu Dhol Beats in Silpukhuri',
-    content: 'Listening to the resonance of Dhol drums during Kati Bihu. Bhaben sat on the veranda tapping his fingers in rhythm with the beats.',
-    media_type: 'audio',
-    audio_duration: '0:48',
-    location_tag: 'Silpukhuri, Guwahati',
-    emotion: 'joy',
-    created_at: new Date(Date.now() - 5 * 86400000).toISOString()
-  },
-  {
-    id: 'mj-3',
-    user_id: 'user-mary',
-    title: 'Picking Wild Strawberries in Cherrapunjee Hills',
-    content: 'Kong Mary vividly shared how she used to hike the rolling green meadows of Sohra after monsoon showers, collecting sweet wild mountain berries in woven cane baskets.',
-    media_type: 'photo',
-    media_url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=600&q=80',
-    location_tag: 'Sohra, Meghalaya',
-    emotion: 'peaceful',
-    created_at: new Date(Date.now() - 3 * 86400000).toISOString()
-  }
-];
+let memoryJournals: MemoryJournalEntry[] = [];
 
-let medicationSchedules: MedicationSchedule[] = [
-  {
-    id: 'med-1',
-    user_id: 'user-bhaben',
-    med_name: 'Donepezil (Aricept)',
-    dosage: '5 mg - 1 Tablet',
-    timing: 'bedtime',
-    time_str: '09:00 PM',
-    purpose: 'Cholinesterase inhibitor for cognitive stability',
-    taken_today: false
-  },
-  {
-    id: 'med-2',
-    user_id: 'user-bhaben',
-    med_name: 'Telmisartan (Blood Pressure)',
-    dosage: '40 mg - 1 Tablet',
-    timing: 'morning',
-    time_str: '08:30 AM',
-    purpose: 'Hypertension maintenance post-breakfast',
-    taken_today: true,
-    last_taken_at: new Date(Date.now() - 4 * 3600000).toISOString()
-  },
-  {
-    id: 'med-3',
-    user_id: 'user-bhaben',
-    med_name: 'Methylcobalamin & Vitamin D3',
-    dosage: '1 Capsule',
-    timing: 'afternoon',
-    time_str: '01:30 PM',
-    purpose: 'Neuro-protective vitamin supplement after lunch',
-    taken_today: true,
-    last_taken_at: new Date(Date.now() - 1 * 3600000).toISOString()
-  },
-  {
-    id: 'med-4',
-    user_id: 'user-mary',
-    med_name: 'Memantine HCl',
-    dosage: '10 mg',
-    timing: 'morning',
-    time_str: '09:00 AM',
-    purpose: 'NMDA receptor antagonist for memory support',
-    taken_today: true
-  }
-];
+let medicationSchedules: MedicationSchedule[] = [];
 
 let consultationDoctors: ConsultationDoctor[] = [
   {
@@ -838,40 +598,287 @@ function analyzePatientGamingPerformance(userId: string): PatientGamingAnalysis 
   };
 }
 
-// AI Personalization Engine — directly grounded in actual patient gaming analysis
+// In-memory cache for fast responsive reads
+const aiRecommendationsCache: Map<string, { data: AIRecommendation; timestamp: number }> = new Map();
+
+// Base algorithmic recommendation (ground truth & clinical fallback)
 function computeAIRecommendation(userId: string): AIRecommendation {
   const analysis = analyzePatientGamingPerformance(userId);
+  const user = users.find(u => u.id === userId || u.patient_id === userId);
+
+  const gameTitles: Record<GameType, string> = {
+    memory_match: 'Cultural Pair Match (Assam Tea & Heritage)',
+    sequence_recall: 'Traditional Melody & Rhythm Recall',
+    picture_recognition: 'Northeast Heritage & Wildlife Recognition',
+    simple_puzzle: 'Heritage Craft & Landscape Puzzle',
+    face_match: 'Familiar Faces & Loved Ones Match'
+  };
+
+  const domainNames: Record<GameType, string> = {
+    memory_match: 'Short-Term Visual & Spatial Working Memory',
+    sequence_recall: 'Working Memory, Attention & Sequential Recall',
+    picture_recognition: 'Semantic Memory & Visual Categorization',
+    simple_puzzle: 'Visuospatial Reasoning & Coordination',
+    face_match: 'Social-Emotional & Facial Recognition'
+  };
 
   if (!analysis.has_data) {
+    const nextGame: GameType = 'memory_match';
     return {
       recommended_difficulty: 'easy',
-      next_game_type: 'memory_match',
+      next_game_type: nextGame,
+      recommended_game_title: gameTitles[nextGame],
       engagement_score: 0,
       has_gaming_data: false,
       total_games_analyzed: 0,
-      rationale: 'Awaiting initial game session. Ready for patient to begin with culturally familiar Memory Match.',
-      observation_note: 'No gaming scores recorded yet. Scores and cognitive trends will generate directly from patient gameplay.',
+      rationale: 'Ready for initial cognitive exploration with culturally familiar Pair Match.',
+      observation_note: 'No gaming telemetry recorded yet. AI baseline active.',
       ethical_disclaimer: ETHICAL_DISCLAIMER,
-      recent_trend: 'insufficient_data'
+      recent_trend: 'insufficient_data',
+      ai_powered: false,
+      clinical_reasoning: 'Starting with Cultural Pair Match introduces gentle visual stimuli (Assam tea leaves, Hornbill, Muga silk) without cognitive strain, building baseline spatial confidence.',
+      cognitive_focus_domain: domainNames[nextGame],
+      patient_encouragement_message: `Welcome ${user?.name ? user.name : 'Aap'}! Let's start with a gentle game of matching beautiful Northeast heritage pictures.`,
+      patient_voice_prompt: `Welcome! Let us begin with Cultural Pair Match. Find the matching pictures to brighten your day and keep your mind active.`,
+      caregiver_actionable_tip: 'Sit beside the patient during their first game, encourage them to name the items out loud, and celebrate every match with a warm smile.',
+      expected_therapeutic_benefit: 'Activates visual association pathways and builds playful engagement without performance stress.',
+      confidence_score: 85,
+      adaptive_level_suggestion: 1
     };
   }
 
   let recommendedDifficulty: DifficultyLevel = 'easy';
   if (analysis.gaming_score >= 88 && analysis.average_response_time_sec <= 5.2 && analysis.total_mistakes <= 2) {
     recommendedDifficulty = 'medium';
+  } else if (analysis.gaming_score >= 95 && analysis.average_response_time_sec <= 3.8) {
+    recommendedDifficulty = 'hard';
   }
+
+  const nextGame = analysis.recommended_game.game_type;
 
   return {
     recommended_difficulty: recommendedDifficulty,
-    next_game_type: analysis.recommended_game.game_type,
+    next_game_type: nextGame,
+    recommended_game_title: gameTitles[nextGame] || analysis.recommended_game.title,
     engagement_score: analysis.gaming_score,
     has_gaming_data: true,
     total_games_analyzed: analysis.total_games_played,
-    rationale: `Directly derived from ${analysis.total_games_played} patient game sessions (${analysis.gaming_score}/100 gaming score): ${analysis.trend_summary}`,
+    rationale: `Derived from ${analysis.total_games_played} cognitive sessions (${analysis.gaming_score}/100 gaming score): ${analysis.trend_summary}`,
     observation_note: `${analysis.clinical_insight} ${analysis.speed_analysis}`,
     ethical_disclaimer: ETHICAL_DISCLAIMER,
-    recent_trend: analysis.trend_direction === 'insufficient_data' ? 'stable' : analysis.trend_direction
+    recent_trend: analysis.trend_direction === 'insufficient_data' ? 'stable' : analysis.trend_direction,
+    ai_powered: false,
+    clinical_reasoning: `${analysis.clinical_insight} Target domain "${domainNames[nextGame]}" will optimize neural stimulation while matching current latency of ${analysis.average_response_time_sec}s.`,
+    cognitive_focus_domain: domainNames[nextGame],
+    patient_encouragement_message: `Great progress! Based on your steady memory sessions, playing ${gameTitles[nextGame]} will be wonderful for your mind today.`,
+    patient_voice_prompt: `You are doing wonderfully! Today, let us play ${gameTitles[nextGame]}. It will keep your memory sharp and joyful.`,
+    caregiver_actionable_tip: `Support ${user?.name || 'the senior'} with gentle prompts. Focus on positive reinforcement rather than speed.`,
+    expected_therapeutic_benefit: `Reinforces ${domainNames[nextGame]} and maintains neural pathways against cognitive decline.`,
+    confidence_score: 88,
+    adaptive_level_suggestion: recommendedDifficulty === 'hard' ? 4 : recommendedDifficulty === 'medium' ? 2 : 1
   };
+}
+
+// Deep Gemini AI Cognitive Game Recommendation Engine
+async function generateGeminiAIRecommendation(userId: string, forceRefresh: boolean = false): Promise<AIRecommendation> {
+  const cached = aiRecommendationsCache.get(userId);
+  const now = Date.now();
+  // Cache for 60 seconds unless forceRefresh
+  if (!forceRefresh && cached && (now - cached.timestamp < 60000)) {
+    return cached.data;
+  }
+
+  const baseline = computeAIRecommendation(userId);
+  const analysis = analyzePatientGamingPerformance(userId);
+  const user = users.find(u => u.id === userId || u.patient_id === userId);
+  const ai = getGeminiClient();
+
+  if (!ai) {
+    aiRecommendationsCache.set(userId, { data: baseline, timestamp: now });
+    return baseline;
+  }
+
+  try {
+    const recentSessions = getUserSessions(userId)
+      .sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime())
+      .slice(0, 8);
+
+    const prompt = `You are an expert Geriatric Neuropsychologist and Senior Cognitive Rehabilitation Specialist analyzing an elderly patient with dementia or cognitive aging in North East India.
+Analyze this patient's clinical profile, detailed gameplay telemetry, and cognitive domain metrics to prescribe the SINGLE BEST game and difficulty level right now.
+
+PATIENT CLINICAL PROFILE:
+- Name: ${user?.name || 'Patient'}
+- Age: ${user?.age || 72}
+- Dementia Stage: ${user?.dementia_stage || 'mild'} (stages: healthy_aging, early, mild, moderate)
+- Primary Language: ${user?.language_pref || 'en'} (en: English, as: Assamese, kha: Khasi, mni: Meiteilon, hi: Hindi)
+- Care Goals: ${(user?.care_goals || []).join(', ') || 'Preserve memory, reduce agitation, encourage daily routine'}
+- Diagnosis / Doctor Note: ${user?.diagnosis_note || 'Dementia care plan with cognitive rehabilitation'}
+
+PATIENT GAMEPLAY TELEMETRY & ACTUAL SCORES:
+- Total Games Played: ${analysis.total_games_played}
+- Overall Cognitive Score: ${analysis.gaming_score}/100
+- Average Accuracy: ${analysis.average_accuracy_pct}%
+- Average Reaction / Latency: ${analysis.average_response_time_sec} seconds
+- Total Mistakes: ${analysis.total_mistakes}
+- Total Stars Earned: ${analysis.total_stars}
+- Trend Trajectory: ${analysis.trend_direction} (${analysis.trend_summary})
+- Processing Speed Analysis: ${analysis.speed_analysis}
+
+COGNITIVE DOMAIN BREAKDOWN:
+${analysis.domain_breakdown.map(d => `- Domain "${d.domain}" (${d.game_type}): ${d.accuracy}% accuracy, ${d.avg_response_time}s avg reaction, ${d.sessions_count} sessions, ${d.mistakes_avg} avg mistakes. Status: ${d.status}`).join('\n')}
+
+RECENT SESSIONS HISTORY (Newest to Oldest):
+${recentSessions.length > 0 ? recentSessions.map(s => `* Game: ${s.game_type}, Accuracy: ${s.accuracy}%, Time: ${s.response_time}s, Mistakes: ${s.mistakes}, Stars: ${s.stars}, Difficulty: ${s.difficulty_level}, Level: ${s.level_number || 1}`).join('\n') : 'No sessions recorded yet.'}
+
+AVAILABLE GAMES IN SMARAN SATHI:
+1. "memory_match" - Cultural Pair Match (Assam tea leaves, Great Indian Hornbill, Muga/Eri silk, Bihu dhol, Majuli masks). Focus: Short-Term Visual & Spatial Working Memory.
+2. "sequence_recall" - Traditional Melody & Rhythm Recall (Northeast instruments & sound sequences). Focus: Working Memory, Executive Function & Sequential Processing.
+3. "picture_recognition" - Northeast Heritage & Wildlife Recognition (Kamakhya Temple, Kaziranga Rhino, Living Root Bridges, Loktak Lake, Kangla Fort). Focus: Semantic Memory, Visual Identification & Cultural Grounding.
+4. "simple_puzzle" - Heritage Craft & Landscape Puzzle. Focus: Visuospatial Reasoning, Motor Coordination & Mental Rotation.
+5. "face_match" - Familiar Faces & Loved Ones Match (Family members & caregivers). Focus: Social-Emotional Memory, Facial Feature Recall, Anxiety & Agitation Reduction.
+
+CLINICAL PRESCRIPTION RULES:
+1. Recommend the SINGLE game from the 5 available game types that will produce the maximum therapeutic benefit for this patient's current state.
+2. If the patient has moderate dementia or is showing fatigue/mistakes, prefer "face_match" or "picture_recognition" at "easy" difficulty to evoke comfort and joy without frustration.
+3. If the patient has high accuracy (>85%) and quick response (<4.5s), suggest "sequence_recall" or "simple_puzzle" or increase difficulty to "medium" to stimulate neuroplasticity.
+4. Provide a warm, uplifting encouragement message for the senior, an exact voice prompt for text-to-speech audio, and a practical actionable tip for the caregiver.`;
+
+    const candidateModels = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+    let responseText: string | null = null;
+    let successfulModel: string | null = null;
+
+    for (const modelName of candidateModels) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                recommended_game_type: {
+                  type: Type.STRING,
+                  description: 'Must be exactly one of: memory_match, sequence_recall, picture_recognition, simple_puzzle, face_match'
+                },
+                recommended_game_title: {
+                  type: Type.STRING,
+                  description: 'Clear display title of the recommended game'
+                },
+                recommended_difficulty: {
+                  type: Type.STRING,
+                  description: 'Must be one of: easy, medium, hard'
+                },
+                adaptive_level_suggestion: {
+                  type: Type.INTEGER,
+                  description: 'Suggested level from 1 to 10'
+                },
+                cognitive_focus_domain: {
+                  type: Type.STRING,
+                  description: 'Targeted brain function e.g. Visuospatial Working Memory, Semantic Recall, Social-Emotional Recognition'
+                },
+                clinical_reasoning: {
+                  type: Type.STRING,
+                  description: 'Detailed 2-3 sentence neuropsychological reasoning analyzing accuracy, latency, dementia stage, and domain status'
+                },
+                patient_encouragement_message: {
+                  type: Type.STRING,
+                  description: 'Warm, respectful, soothing message addressed to the senior explaining why this game is fun and good for them'
+                },
+                patient_voice_prompt: {
+                  type: Type.STRING,
+                  description: 'Natural spoken prompt for audio TTS playback to the senior'
+                },
+                caregiver_actionable_tip: {
+                  type: Type.STRING,
+                  description: 'Practical guidance for the caregiver/family to assist during this game'
+                },
+                expected_therapeutic_benefit: {
+                  type: Type.STRING,
+                  description: 'Anticipated neural or psychological outcome'
+                },
+                confidence_score: {
+                  type: Type.INTEGER,
+                  description: 'Confidence percentage from 75 to 99'
+                }
+              },
+              required: [
+                'recommended_game_type',
+                'recommended_game_title',
+                'recommended_difficulty',
+                'cognitive_focus_domain',
+                'clinical_reasoning',
+                'patient_encouragement_message',
+                'patient_voice_prompt',
+                'caregiver_actionable_tip',
+                'expected_therapeutic_benefit',
+                'confidence_score'
+              ]
+            }
+          }
+        });
+
+        if (response && response.text) {
+          responseText = response.text.trim();
+          successfulModel = modelName;
+          break;
+        }
+      } catch (modelErr: any) {
+        // If 503 / 429 / spike occurred on this model, failover smoothly to next model
+        const isTransient = modelErr?.status === 'UNAVAILABLE' || modelErr?.message?.includes('503') || modelErr?.message?.includes('high demand') || modelErr?.message?.includes('429');
+        if (isTransient) {
+          console.info(`Gemini model ${modelName} temporarily busy (503/429), failing over to next model candidate...`);
+        } else {
+          console.warn(`Gemini model ${modelName} encountered error:`, modelErr?.message || modelErr);
+        }
+      }
+    }
+
+    if (!responseText) {
+      // Fall back seamlessly to algorithmic clinical baseline
+      aiRecommendationsCache.set(userId, { data: baseline, timestamp: now });
+      return baseline;
+    }
+
+    const parsed = JSON.parse(responseText || '{}');
+    const validGameTypes: GameType[] = ['memory_match', 'sequence_recall', 'picture_recognition', 'simple_puzzle', 'face_match'];
+    const gameType: GameType = validGameTypes.includes(parsed.recommended_game_type) 
+      ? parsed.recommended_game_type 
+      : baseline.next_game_type;
+
+    const validDifficulty: DifficultyLevel = ['easy', 'medium', 'hard'].includes(parsed.recommended_difficulty)
+      ? parsed.recommended_difficulty
+      : baseline.recommended_difficulty;
+
+    const geminiRec: AIRecommendation = {
+      recommended_difficulty: validDifficulty,
+      next_game_type: gameType,
+      recommended_game_title: parsed.recommended_game_title || baseline.recommended_game_title,
+      engagement_score: analysis.gaming_score,
+      rationale: parsed.clinical_reasoning || baseline.rationale,
+      observation_note: parsed.expected_therapeutic_benefit || baseline.observation_note,
+      ethical_disclaimer: ETHICAL_DISCLAIMER,
+      recent_trend: analysis.trend_direction === 'insufficient_data' ? 'stable' : analysis.trend_direction,
+      has_gaming_data: analysis.has_data,
+      total_games_analyzed: analysis.total_games_played,
+      ai_powered: true,
+      clinical_reasoning: parsed.clinical_reasoning || baseline.clinical_reasoning,
+      cognitive_focus_domain: parsed.cognitive_focus_domain || baseline.cognitive_focus_domain,
+      patient_encouragement_message: parsed.patient_encouragement_message || baseline.patient_encouragement_message,
+      patient_voice_prompt: parsed.patient_voice_prompt || baseline.patient_voice_prompt,
+      caregiver_actionable_tip: parsed.caregiver_actionable_tip || baseline.caregiver_actionable_tip,
+      expected_therapeutic_benefit: parsed.expected_therapeutic_benefit || baseline.expected_therapeutic_benefit,
+      confidence_score: parsed.confidence_score || 94,
+      adaptive_level_suggestion: parsed.adaptive_level_suggestion || baseline.adaptive_level_suggestion
+    };
+
+    aiRecommendationsCache.set(userId, { data: geminiRec, timestamp: now });
+    return geminiRec;
+  } catch (err) {
+    console.warn('Gemini recommendation generation error, using algorithmic fallback:', err);
+    aiRecommendationsCache.set(userId, { data: baseline, timestamp: now });
+    return baseline;
+  }
 }
 
 // -------------------------------------------------------------
@@ -937,6 +944,45 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
 // Get all users
 app.get('/api/users', (_req: Request, res: Response) => {
   res.json({ users });
+});
+
+// Delete all users & reset database data (Admin / Privacy Purge)
+app.delete('/api/users', (_req: Request, res: Response) => {
+  users.length = 0;
+  caregiverLinks.length = 0;
+  gameSessions.length = 0;
+  reminders.length = 0;
+  alerts.length = 0;
+  memoryJournals.length = 0;
+  medicationSchedules.length = 0;
+  saveUsersToDisk([]);
+  saveGameSessionsToDisk([]);
+  saveRemindersToDisk([]);
+  try {
+    if (fs.existsSync(USERS_FILE)) fs.unlinkSync(USERS_FILE);
+    if (fs.existsSync(SESSIONS_FILE)) fs.unlinkSync(SESSIONS_FILE);
+    if (fs.existsSync(REMINDERS_FILE)) fs.unlinkSync(REMINDERS_FILE);
+  } catch (e) {}
+  res.json({ success: true, message: 'All users and IDs cleared' });
+});
+
+app.post('/api/admin/clear-all-users', (_req: Request, res: Response) => {
+  users.length = 0;
+  caregiverLinks.length = 0;
+  gameSessions.length = 0;
+  reminders.length = 0;
+  alerts.length = 0;
+  memoryJournals.length = 0;
+  medicationSchedules.length = 0;
+  saveUsersToDisk([]);
+  saveGameSessionsToDisk([]);
+  saveRemindersToDisk([]);
+  try {
+    if (fs.existsSync(USERS_FILE)) fs.unlinkSync(USERS_FILE);
+    if (fs.existsSync(SESSIONS_FILE)) fs.unlinkSync(SESSIONS_FILE);
+    if (fs.existsSync(REMINDERS_FILE)) fs.unlinkSync(REMINDERS_FILE);
+  } catch (e) {}
+  res.json({ success: true, message: 'All user data cleared from disk and memory' });
 });
 
 // Get registered caregivers
@@ -1176,7 +1222,7 @@ app.post('/api/caregivers/unlink', (req: Request, res: Response) => {
 });
 
 // Log a game session
-app.post('/api/game-sessions', (req: Request, res: Response) => {
+app.post('/api/game-sessions', async (req: Request, res: Response) => {
   const { 
     user_id, 
     game_type, 
@@ -1210,8 +1256,9 @@ app.post('/api/game-sessions', (req: Request, res: Response) => {
   gameSessions.push(newSession);
   saveGameSessionsToDisk(gameSessions);
 
-  // Generate updated real AI recommendation and patient gaming analysis immediately
-  const recommendation = computeAIRecommendation(user_id);
+  // Invalidate recommendation cache and generate updated Gemini AI recommendation
+  aiRecommendationsCache.delete(user_id);
+  const recommendation = await generateGeminiAIRecommendation(user_id, true);
   const analysis = analyzePatientGamingPerformance(user_id);
 
   res.json({
@@ -1253,11 +1300,27 @@ app.get('/api/game-sessions/:userId', (req: Request, res: Response) => {
   res.json({ sessions });
 });
 
-// AI Personalization Recommendation Endpoint
-app.get('/api/ai/recommendation/:userId', (req: Request, res: Response) => {
+// AI Personalization Recommendation Endpoint (with optional ?refresh=true)
+app.get('/api/ai/recommendation/:userId', async (req: Request, res: Response) => {
   const { userId } = req.params;
-  const recommendation = computeAIRecommendation(userId);
+  const forceRefresh = req.query.refresh === 'true';
+  const recommendation = await generateGeminiAIRecommendation(userId, forceRefresh);
   res.json(recommendation);
+});
+
+// On-demand AI Game Recommendation with custom clinical focus or stage
+app.post('/api/ai/recommend-game', async (req: Request, res: Response) => {
+  const { userId, forceRefresh } = req.body;
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID is required' });
+  }
+  const recommendation = await generateGeminiAIRecommendation(userId, forceRefresh ?? true);
+  const analysis = analyzePatientGamingPerformance(userId);
+  res.json({
+    success: true,
+    recommendation,
+    analysis
+  });
 });
 
 // Cognitive Performance Trends & Chart Aggregations — connected to actual patient gameplay

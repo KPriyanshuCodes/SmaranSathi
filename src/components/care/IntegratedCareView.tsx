@@ -15,7 +15,7 @@ import {
   Trash2,
   UserCheck
 } from 'lucide-react';
-import { MedicationSchedule, User, Reminder } from '../../types';
+import { MedicationSchedule, User, Reminder, RegionalLanguage } from '../../types';
 import { soundEffects } from '../../utils/soundEffects';
 
 interface IntegratedCareViewProps {
@@ -23,13 +23,15 @@ interface IntegratedCareViewProps {
   caregiverName?: string;
   onAddReminder?: (newRem: Omit<Reminder, 'id' | 'created_at' | 'completed'>) => void;
   isElderlyMode?: boolean;
+  language?: RegionalLanguage;
 }
 
 export const IntegratedCareView: React.FC<IntegratedCareViewProps> = ({
   user,
   caregiverName,
   onAddReminder,
-  isElderlyMode = false
+  isElderlyMode = false,
+  language = 'en'
 }) => {
   const [medications, setMedications] = useState<MedicationSchedule[]>([]);
   const [loading, setLoading] = useState(true);

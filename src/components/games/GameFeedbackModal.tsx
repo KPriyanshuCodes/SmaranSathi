@@ -92,15 +92,33 @@ export const GameFeedbackModal: React.FC<GameFeedbackModalProps> = ({
           <span>{t.voice_guide}</span>
         </button>
 
-        {/* Gentle AI Recommendation note */}
+        {/* Gentle AI Recommendation card */}
         {recommendation && (
-          <div className="p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-200 text-left">
-            <div className="flex items-center gap-2 text-emerald-800 font-black text-sm mb-1">
-              <Sparkles className="w-4 h-4 text-emerald-600" />
-              <span>Recommended Next Step</span>
+          <div className="p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-200 text-left space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-emerald-900 font-black text-sm">
+                <Sparkles className="w-4 h-4 text-emerald-600" />
+                <span>AI Recommended Next Game:</span>
+              </div>
+              {recommendation.ai_powered && (
+                <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-200/70 text-emerald-950 px-2 py-0.5 rounded-full">
+                  Gemini AI
+                </span>
+              )}
             </div>
-            <p className="text-gray-700 text-sm leading-relaxed font-medium">
-              {recommendation.rationale}
+
+            <h4 className="font-black text-slate-900 text-base">
+              {recommendation.recommended_game_title || (recommendation.next_game_type ? recommendation.next_game_type.replace('_', ' ').toUpperCase() : 'Next Game')}
+            </h4>
+
+            {recommendation.cognitive_focus_domain && (
+              <p className="text-xs text-emerald-800 font-bold">
+                🎯 Target Focus: {recommendation.cognitive_focus_domain}
+              </p>
+            )}
+
+            <p className="text-gray-700 text-xs sm:text-sm leading-relaxed font-medium">
+              {recommendation.patient_encouragement_message || recommendation.rationale}
             </p>
           </div>
         )}

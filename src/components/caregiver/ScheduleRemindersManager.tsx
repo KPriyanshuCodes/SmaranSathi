@@ -29,10 +29,12 @@ import {
   ReminderType, 
   RecurrenceType, 
   ReminderPriority, 
-  User 
+  User,
+  RegionalLanguage
 } from '../../types';
 import { soundEffects, speakText } from '../../utils/speechAndAudio';
 import { Bell } from 'lucide-react';
+import { CAREGIVER_TRANSLATIONS } from '../../data/caregiverTranslations';
 
 interface ScheduleRemindersManagerProps {
   currentPatient: User;
@@ -45,6 +47,7 @@ interface ScheduleRemindersManagerProps {
   onUpdateReminder?: (id: string, updates: Partial<Reminder>) => void;
   onTriggerAlarm?: (reminder: Reminder) => void;
   caregiverName?: string;
+  language?: RegionalLanguage;
 }
 
 // Culturally resonant NER reminder templates for instant scheduling
@@ -149,8 +152,10 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
   onDeleteReminder,
   onToggleReminder,
   onTriggerAlarm,
-  caregiverName = 'Dr. Priya Barua',
+  caregiverName = 'Caregiver',
+  language = 'en',
 }) => {
+  const t = CAREGIVER_TRANSLATIONS[language] || CAREGIVER_TRANSLATIONS.en;
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'medication' | 'routine' | 'today'>('all');
 
@@ -286,26 +291,26 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
     <div className="space-y-6">
       {/* Caregiver Access Header & Security Notice */}
       <div
-        style={{ background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' }}
-        className="rounded-[32px] p-6 md:p-8 shadow-sm border-2 border-[#6BC1B8] text-[#1E293B]"
+        style={{ background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' }}
+        className="rounded-[32px] p-6 md:p-8 shadow-sm border-2 border-[#47D6B6] text-white"
       >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-white/95 border-2 border-[#8DE5A6] flex items-center justify-center text-[#1E293B] shadow-sm shrink-0">
-              <CalendarIcon className="w-7 h-7 text-[#1E293B]" />
+            <div className="w-14 h-14 rounded-2xl bg-white/95 border-2 border-[#47D6B6] flex items-center justify-center text-[#2794EB] shadow-sm shrink-0">
+              <CalendarIcon className="w-7 h-7 text-[#2794EB]" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-2xl md:text-3xl font-black text-[#1E293B]">
-                  Caregiver Routine & Reminder Scheduler
+                <h2 className="text-2xl md:text-3xl font-black text-white">
+                  {t.scheduler_title || 'Caregiver Routine & Reminder Scheduler'}
                 </h2>
-                <span className="px-3 py-1 rounded-full bg-white/90 text-emerald-900 border border-emerald-300 text-xs font-black flex items-center gap-1">
+                <span className="px-3 py-1 rounded-full bg-white/90 text-[#2794EB] border border-[#47D6B6] text-xs font-black flex items-center gap-1">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-                  Caregiver Access Granted
+                  {t.cg_access_granted || 'Caregiver Access Granted'}
                 </span>
               </div>
-              <p className="text-sm font-bold text-slate-800 mt-1">
-                Authorized caregiver: <strong className="text-[#0F172A]">{caregiverName}</strong>. Scheduled reminders automatically sync to the elderly user's tablet with voice readout and audio chimes.
+              <p className="text-sm font-bold text-white/90 mt-1">
+                {t.authorized_caregiver || 'Authorized caregiver'}: <strong className="text-white">{caregiverName}</strong>. {t.reminders_sync_note || "Scheduled reminders automatically sync to the elderly user's tablet with voice readout and audio chimes."}
               </p>
             </div>
           </div>
@@ -315,11 +320,11 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
             <button
               id="quick-1min-alarm-test-btn"
               onClick={handleScheduleOneMinuteTest}
-              className="px-4 py-3.5 rounded-2xl bg-white/95 hover:bg-white text-[#1E293B] font-black text-xs md:text-sm border border-[#8DE5A6] flex items-center justify-center gap-2 cursor-pointer transition-all shadow-xs"
+              className="px-4 py-3.5 rounded-2xl bg-white/95 hover:bg-white text-[#1E293B] font-black text-xs md:text-sm border border-[#47D6B6] flex items-center justify-center gap-2 cursor-pointer transition-all shadow-xs"
               title="Schedules a reminder for 1 minute from now to test live sound notification"
             >
-              <Bell className="w-4 h-4 text-[#3E82F0]" />
-              <span>⚡ Set 1-Min Alarm Test</span>
+              <Bell className="w-4 h-4 text-[#2794EB]" />
+              <span>{t.quick_alarm_test || '⚡ Set 1-Min Alarm Test'}</span>
             </button>
 
             {/* Quick Schedule Button */}
@@ -332,16 +337,16 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
               className="px-6 py-3.5 rounded-2xl bg-[#1E293B] hover:bg-slate-800 text-white font-black text-sm md:text-base flex items-center justify-center gap-2 border border-slate-700 shadow-sm active:scale-95 transition-all cursor-pointer shrink-0"
             >
               <Plus className="w-5 h-5" />
-              <span>{showScheduleForm ? 'Close Scheduler' : '➕ Schedule New Routine'}</span>
+              <span>{showScheduleForm ? (t.close_scheduler || 'Close Scheduler') : (t.schedule_new_routine || '➕ Schedule New Routine')}</span>
             </button>
           </div>
         </div>
 
         {/* Patient Switcher for Scheduling */}
-        <div className="mt-6 pt-5 border-t border-black/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="mt-6 pt-5 border-t border-white/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-              Scheduling for Patient:
+            <span className="text-xs font-black uppercase tracking-wider text-white/90">
+              {t.assigned_patients}
             </span>
             <div className="flex items-center gap-2 flex-wrap">
               {allPatients.map((p) => (
@@ -364,8 +369,8 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
           </div>
 
           {/* Adherence Mini Badge */}
-          <div className="flex items-center gap-3 text-xs font-bold text-slate-800 bg-white/90 px-4 py-2 rounded-xl border border-white/60">
-            <span>Today's Adherence:</span>
+          <div className="flex items-center gap-3 text-xs font-bold text-[#1E293B] bg-white/95 px-4 py-2 rounded-xl border border-white/60">
+            <span>{t.daily_adherence}:</span>
             <span className="text-sm font-black text-emerald-800">
               {completedCount} / {reminders.length} ({adherenceRate}%)
             </span>
@@ -374,16 +379,16 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
       </div>
 
       {/* Preset Cultural Templates (One-Click Auto-Fill) */}
-      <div className="bg-[#FAFAFA] rounded-[32px] p-6 border-2 border-[#8DE5A6] shadow-sm space-y-4">
+      <div className="bg-[#FAFAFA] rounded-[32px] p-6 border-2 border-[#47D6B6] shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-amber-500" />
             <h3 className="text-lg md:text-xl font-black text-gray-900">
-              One-Click Regional Routine Presets
+              {t.one_click_presets || 'One-Click Regional Routine Presets'}
             </h3>
           </div>
           <span className="text-xs font-bold text-gray-500 hidden sm:inline">
-            Tap to load into scheduler
+            {t.tap_to_load || 'Tap to load into scheduler'}
           </span>
         </div>
 
@@ -413,7 +418,7 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
               </div>
 
               <div className="pt-2 mt-2 border-t border-yellow-200/60 flex items-center justify-between text-xs font-black text-amber-700">
-                <span>Use Template</span>
+                <span>{t.use_template || 'Use Template'}</span>
                 <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
               </div>
             </button>
@@ -423,7 +428,7 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
 
       {/* SCHEDULE FORM ACCORDION */}
       {showScheduleForm && (
-        <form onSubmit={handleSubmitSchedule} className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-md space-y-6 animate-fade-in">
+        <form onSubmit={handleSubmitSchedule} className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#47D6B6] shadow-md space-y-6 animate-fade-in">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4">
             <div>
               <h3 className="text-xl font-black text-[#1E293B]">
@@ -461,7 +466,7 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. Afternoon CTC Tea & Donepezil 5mg"
-                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-orange-500 focus:outline-none font-bold text-sm text-gray-900"
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#47D6B6] focus:outline-none font-bold text-sm text-gray-900"
               />
             </div>
 
@@ -473,7 +478,7 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value as ReminderType)}
-                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-orange-500 focus:outline-none font-bold text-sm text-gray-900 bg-white cursor-pointer"
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#47D6B6] focus:outline-none font-bold text-sm text-gray-900 bg-white cursor-pointer"
               >
                 <option value="medication">💊 Medication Dose</option>
                 <option value="meal">🍲 Meal / Nutrition</option>
@@ -496,7 +501,7 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
                   type="time"
                   value={customTime}
                   onChange={(e) => handleTimeChange(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-orange-500 focus:outline-none font-bold text-sm text-gray-900 bg-white"
+                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#47D6B6] focus:outline-none font-bold text-sm text-gray-900 bg-white"
                 />
                 <button
                   type="button"
@@ -537,7 +542,7 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
               <select
                 value={recurrence}
                 onChange={(e) => setRecurrence(e.target.value as RecurrenceType)}
-                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-orange-500 focus:outline-none font-bold text-sm text-gray-900 bg-white cursor-pointer"
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#47D6B6] focus:outline-none font-bold text-sm text-gray-900 bg-white cursor-pointer"
               >
                 <option value="daily">Everyday (Daily Routine)</option>
                 <option value="weekdays">Weekdays (Monday to Friday)</option>
@@ -600,7 +605,7 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
                   id="audio-chime-checkbox"
                   checked={audioChime}
                   onChange={(e) => setAudioChime(e.target.checked)}
-                  className="w-5 h-5 accent-orange-500 rounded cursor-pointer"
+                  className="w-5 h-5 accent-[#2794EB] rounded cursor-pointer"
                 />
                 <label htmlFor="audio-chime-checkbox" className="text-xs font-bold text-gray-800 cursor-pointer">
                   Play gentle melodic bell & read aloud in patient's preferred language
@@ -613,7 +618,7 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
-                <Volume2 className="w-4 h-4 text-orange-600" />
+                <Volume2 className="w-4 h-4 text-[#2794EB]" />
                 Spoken Voice Guidance (Read Aloud by TTS)
               </label>
               <button
@@ -622,7 +627,7 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
                   const toSpeak = spokenPrompt.trim() || title.trim() || 'This is a test of your scheduled reminder prompt.';
                   speakText(toSpeak, currentPatient.language_pref);
                 }}
-                className="text-xs font-black text-orange-700 hover:text-orange-900 bg-orange-100 hover:bg-orange-200 px-3 py-1 rounded-lg flex items-center gap-1 cursor-pointer"
+                className="text-xs font-black text-[#2794EB] hover:text-[#17B3C1] bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-lg flex items-center gap-1 cursor-pointer"
               >
                 <Volume2 className="w-3.5 h-3.5" />
                 <span>Preview Audio</span>
@@ -633,7 +638,7 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
               value={spokenPrompt}
               onChange={(e) => setSpokenPrompt(e.target.value)}
               placeholder={`e.g. ${currentPatient.name.split(' ')[0]}, it is time for your warm tea and memory medicine.`}
-              className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 focus:border-orange-500 focus:outline-none font-medium text-sm text-gray-900"
+              className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 focus:border-[#47D6B6] focus:outline-none font-medium text-sm text-gray-900"
             />
           </div>
 
@@ -647,7 +652,7 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
               value={instructions}
               onChange={(e) => setInstructions(e.target.value)}
               placeholder="e.g. Ensure patient is seated upright. Take with half a glass of lukewarm water. Check pulse if sluggish."
-              className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 focus:border-orange-500 focus:outline-none font-medium text-sm text-gray-900"
+              className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 focus:border-[#47D6B6] focus:outline-none font-medium text-sm text-gray-900"
             />
           </div>
 
@@ -662,8 +667,8 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
             </button>
             <button
               type="submit"
-              style={{ background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' }}
-              className="px-6 py-3 rounded-xl text-[#0F172A] font-black text-sm border border-[#6BC1B8] shadow-xs hover:brightness-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
+              style={{ background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' }}
+              className="px-6 py-3 rounded-xl text-white font-black text-sm border border-[#47D6B6] shadow-xs hover:brightness-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
             >
               <Check className="w-4 h-4" />
               <span>Save & Publish Reminder to {currentPatient.name.split(' ')[0]}'s Screen</span>
@@ -673,14 +678,14 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
       )}
 
       {/* ALL SCHEDULED REMINDERS LIST */}
-      <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-6">
+      <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#47D6B6] shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
           <div>
             <h3 className="text-xl md:text-2xl font-black text-[#1E293B]">
-              Active Schedules & Reminders ({filteredReminders.length})
+              {t.active_schedules_title || 'Active Schedules & Reminders'} ({filteredReminders.length})
             </h3>
             <p className="text-xs font-bold text-slate-500">
-              Currently configured routines for {currentPatient.name}
+              {t.configured_routines_for || 'Currently configured routines for'} {currentPatient.name}
             </p>
           </div>
 
@@ -694,27 +699,27 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
                   : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
               }`}
             >
-              All ({reminders.length})
+              {t.filter_all || 'All'} ({reminders.length})
             </button>
             <button
               onClick={() => setActiveFilter('medication')}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition-colors cursor-pointer ${
                 activeFilter === 'medication'
-                  ? 'bg-[#3E82F0] text-white shadow-xs'
+                  ? 'bg-[#2794EB] text-white shadow-xs'
                   : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
               }`}
             >
-              💊 Medications
+              {t.filter_medications || '💊 Medications'}
             </button>
             <button
               onClick={() => setActiveFilter('routine')}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition-colors cursor-pointer ${
                 activeFilter === 'routine'
-                  ? 'bg-[#6BC1B8] text-white shadow-xs'
+                  ? 'bg-[#47D6B6] text-white shadow-xs'
                   : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
               }`}
             >
-              🗓️ Daily Routines
+              {t.filter_routines || '🗓️ Daily Routines'}
             </button>
           </div>
         </div>
@@ -723,10 +728,10 @@ export const ScheduleRemindersManager: React.FC<ScheduleRemindersManagerProps> =
           <div className="p-8 text-center bg-orange-50/50 rounded-2xl border-2 border-dashed border-orange-200 space-y-3">
             <Clock className="w-10 h-10 text-orange-400 mx-auto" />
             <h4 className="text-base font-black text-gray-800">
-              No scheduled reminders matching this filter
+              {t.no_reminders_filter || 'No scheduled reminders matching this filter'}
             </h4>
             <p className="text-xs text-gray-500 max-w-sm mx-auto">
-              Use the "Schedule New Routine" button or choose one of the regional presets above to add daily reminders for {currentPatient.name}.
+              {t.no_reminders_filter_sub || `Use the "Schedule New Routine" button or choose one of the regional presets above to add daily reminders for ${currentPatient.name}.`}
             </p>
           </div>
         ) : (

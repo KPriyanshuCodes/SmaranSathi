@@ -1,16 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --theme-gradient: linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0);
-  --theme-mint: #C3F2D6;
-  --theme-fresh-green: #8DE5A6;
-  --theme-teal: #6BC1B8;
-  --theme-vivid-blue: #3E82F0;
+  --theme-gradient: linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4);
+  --theme-deep-blue: #2794EB;
+  --theme-ocean-blue: #17B3C1;
+  --theme-teal: #47D6B6;
+  --theme-mint: #BFF8D4;
+  --theme-fresh-green: #47D6B6;
+  --theme-vivid-blue: #2794EB;
   --theme-dark-slate: #1E293B;
   --theme-card-bg: #FAFAFA;
   --bg-primary: #F8FAFC;
   --text-primary: #1E293B;
-  --border-accent: #6BC1B8;
+  --border-accent: #47D6B6;
 }
 
 /* Majuli Sunset & Terracotta (Warm Earth & Eri Gold) */
@@ -82,49 +84,49 @@ body {
 
 /* Primary Gradient Utilities */
 .bg-theme-gradient {
-  background: linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0);
+  background: linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4);
 }
 
 .bg-theme-gradient-subtle {
-  background: linear-gradient(to right, rgba(195, 242, 214, 0.45), rgba(141, 229, 166, 0.35), rgba(107, 193, 184, 0.25), rgba(62, 130, 240, 0.2));
+  background: linear-gradient(to right, rgba(39, 148, 235, 0.15), rgba(23, 179, 193, 0.12), rgba(71, 214, 182, 0.12), rgba(191, 248, 212, 0.18));
 }
 
 .bg-theme-gradient-soft {
-  background: linear-gradient(to right, rgba(195, 242, 214, 0.2), rgba(141, 229, 166, 0.15), rgba(107, 193, 184, 0.12), rgba(62, 130, 240, 0.1));
+  background: linear-gradient(to right, rgba(39, 148, 235, 0.08), rgba(23, 179, 193, 0.06), rgba(71, 214, 182, 0.06), rgba(191, 248, 212, 0.10));
 }
 
 /* Primary Button Styling with Palette Gradient */
 .btn-primary-gradient {
-  background: linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0);
-  color: #0F172A;
-  border: 2px solid #6BC1B8;
-  box-shadow: 0 4px 14px rgba(62, 130, 240, 0.25);
+  background: linear-gradient(135deg, #2794EB 0%, #17B3C1 50%, #47D6B6 100%);
+  color: #FFFFFF;
+  border: 2px solid #47D6B6;
+  box-shadow: 0 4px 14px rgba(39, 148, 235, 0.35);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-primary-gradient:hover {
-  filter: brightness(1.04);
-  box-shadow: 0 6px 20px rgba(62, 130, 240, 0.35);
+  filter: brightness(1.08);
+  box-shadow: 0 6px 20px rgba(39, 148, 235, 0.45);
   transform: translateY(-1px);
 }
 
 .btn-primary-gradient:active {
   transform: translateY(1px);
-  box-shadow: 0 2px 8px rgba(62, 130, 240, 0.2);
+  box-shadow: 0 2px 8px rgba(39, 148, 235, 0.25);
 }
 
-/* Secondary Button with Muted Green / Soft Gray */
+/* Secondary Button with Muted Accent / Soft Card */
 .btn-secondary-theme {
   background: #FAFAFA;
-  color: #1E293B;
-  border: 2px solid #8DE5A6;
+  color: #2794EB;
+  border: 2px solid #47D6B6;
   transition: all 0.2s ease-in-out;
 }
 
 .btn-secondary-theme:hover {
   background: #F0FDF4;
-  border-color: #6BC1B8;
-  color: #3E82F0;
+  border-color: #17B3C1;
+  color: #17B3C1;
 }
 
 /* Floating SOS Button Pulse Glow Animation */

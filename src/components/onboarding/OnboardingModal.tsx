@@ -91,9 +91,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     ]
   );
   const [emergencyContact, setEmergencyContact] = useState({
-    name: user.emergency_contact?.name || 'Dr. Priya Barua',
-    phone: user.emergency_contact?.phone || '+91 98640 12345',
-    relation: user.emergency_contact?.relation || 'Primary Caregiver / Daughter'
+    name: user.emergency_contact?.name || '',
+    phone: user.emergency_contact?.phone || '',
+    relation: user.emergency_contact?.relation || ''
   });
 
   if (!isOpen) return null;

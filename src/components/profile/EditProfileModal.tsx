@@ -1,9 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { 
   X, 
   Camera, 
-  Upload, 
-  Link as LinkIcon, 
   User as UserIcon, 
   Phone, 
   MapPin, 
@@ -26,6 +24,7 @@ import {
 import { FaceRegistrationScanner } from '../auth/FaceRegistrationScanner';
 import { User, RegionalLanguage, DementiaStage } from '../../types';
 import { LANGUAGE_LABELS, UI_TRANSLATIONS } from '../../data/nerContent';
+import { NER_STATES_DATA } from '../../data/nerLocations';
 import { soundEffects } from '../../utils/speechAndAudio';
 import { searchCaregiverByCodeOrName, unlinkElderlyFromCaregiverInFirebase } from '../../lib/firebase';
 
@@ -35,85 +34,6 @@ interface EditProfileModalProps {
   user: User;
   onSave: (updatedUser: User) => Promise<void> | void;
 }
-
-// Culturally respectful curated presets for North East India & universal care
-const ELDERLY_AVATAR_PRESETS = [
-  {
-    id: 'elder-1',
-    label: 'Dadaji Bhaben (Guwahati)',
-    url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
-    description: 'Traditional Assam Elder'
-  },
-  {
-    id: 'elder-2',
-    label: 'Aita Kalyani (Assam)',
-    url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
-    description: 'Graceful Grandmother'
-  },
-  {
-    id: 'elder-3',
-    label: 'Bah Heprit (Shillong)',
-    url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=400&q=80',
-    description: 'Smiling Meghalaya Elder'
-  },
-  {
-    id: 'elder-4',
-    label: 'Ima Ibemhal (Imphal)',
-    url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=400&q=80',
-    description: 'Loving Matriarch'
-  },
-  {
-    id: 'elder-5',
-    label: 'Koka Hazarika (Jorhat)',
-    url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-    description: 'Peaceful Scholar Elder'
-  },
-  {
-    id: 'elder-6',
-    label: 'Mei Wanlang (Cherrapunji)',
-    url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80',
-    description: 'Gentle Khasi Elder'
-  },
-];
-
-const CAREGIVER_AVATAR_PRESETS = [
-  {
-    id: 'cg-1',
-    label: 'Dr. Priya Barua',
-    url: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80',
-    description: 'Geriatric Specialist'
-  },
-  {
-    id: 'cg-2',
-    label: 'Dr. Bikash Hazarika',
-    url: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=400&q=80',
-    description: 'Clinical Neurologist'
-  },
-  {
-    id: 'cg-3',
-    label: 'Care Coordinator Ananya',
-    url: 'https://images.unsplash.com/photo-1594824813576-96b01b63ef26?auto=format&fit=crop&w=400&q=80',
-    description: 'Community Health Nurse'
-  },
-  {
-    id: 'cg-4',
-    label: 'Family Caregiver Rahul',
-    url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=400&q=80',
-    description: 'Devoted Family Companion'
-  },
-  {
-    id: 'cg-5',
-    label: 'Clinical Associate Maya',
-    url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-    description: 'Cognitive Engagement Lead'
-  },
-  {
-    id: 'cg-6',
-    label: 'Home Health Nurse David',
-    url: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80',
-    description: 'Primary Care Specialist'
-  },
-];
 
 const POPULAR_LOCATIONS = [
   'Guwahati, Assam',
@@ -137,12 +57,11 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   if (!isOpen) return null;
 
   const isElderly = user.role === 'elderly';
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form States
   const [name, setName] = useState(user.name || '');
   const [avatar, setAvatar] = useState(
-    user.avatar || (isElderly ? ELDERLY_AVATAR_PRESETS[0].url : CAREGIVER_AVATAR_PRESETS[0].url)
+    user.avatar || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80'
   );
   const [phone, setPhone] = useState(user.phone || '');
   const [location, setLocation] = useState(user.location || 'Guwahati, Assam');
@@ -227,50 +146,10 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     }
   };
 
-  // UI tabs & states
-  const [photoTab, setPhotoTab] = useState<'presets' | 'upload' | 'url'>('presets');
-  const [customUrlInput, setCustomUrlInput] = useState('');
+  // UI feedback & saving states
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-
-  // Handle local image file upload
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      setErrorMessage('Please select a valid image file (PNG, JPG, WebP).');
-      return;
-    }
-
-    // Limit file size (max 4MB)
-    if (file.size > 4 * 1024 * 1024) {
-      setErrorMessage('Image size is too large. Please select an image under 4MB.');
-      return;
-    }
-
-    setErrorMessage('');
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (typeof event.target?.result === 'string') {
-        setAvatar(event.target.result);
-        soundEffects.playGentleTap();
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // Apply custom URL
-  const handleApplyCustomUrl = () => {
-    if (!customUrlInput.trim()) {
-      setErrorMessage('Please enter an image URL.');
-      return;
-    }
-    setAvatar(customUrlInput.trim());
-    setErrorMessage('');
-    soundEffects.playGentleTap();
-  };
 
   // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
@@ -330,25 +209,26 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     }
   };
 
-  const presetList = isElderly ? ELDERLY_AVATAR_PRESETS : CAREGIVER_AVATAR_PRESETS;
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in">
       <div 
         id="edit-profile-dialog"
-        className="relative w-full max-w-2xl bg-white rounded-[32px] border-4 border-amber-300 shadow-2xl my-8 overflow-hidden flex flex-col max-h-[92vh]"
+        className="relative w-full max-w-2xl bg-white rounded-[32px] border-4 border-[#47D6B6] shadow-2xl my-8 overflow-hidden flex flex-col max-h-[92vh]"
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-gray-950 border-b-3 border-amber-600">
+        <div 
+          className="flex items-center justify-between px-6 py-5 text-white border-b-3 border-[#17B3C1]"
+          style={{ background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6)' }}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-400 border-2 border-amber-300 flex items-center justify-center shadow-xs">
-              <Camera className="w-5 h-5 text-gray-950" />
+            <div className="w-10 h-10 rounded-2xl bg-white/20 border-2 border-white/30 flex items-center justify-center shadow-xs">
+              <Camera className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-gray-950">
-                Edit Profile & Photo
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+                Edit Profile & Face ID
               </h2>
-              <p className="text-xs sm:text-sm font-bold text-amber-950/80">
+              <p className="text-xs sm:text-sm font-bold text-white/80">
                 {isElderly ? 'Senior Companion Account' : 'Caregiver Specialist Account'}
               </p>
             </div>
@@ -361,7 +241,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               soundEffects.playGentleTap();
               onClose();
             }}
-            className="w-10 h-10 rounded-full bg-white/30 hover:bg-white/50 text-gray-950 flex items-center justify-center cursor-pointer transition-colors border border-amber-300"
+            className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 text-white flex items-center justify-center cursor-pointer transition-colors border border-white/30"
             title="Close"
           >
             <X className="w-5 h-5" />
@@ -371,168 +251,71 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
         {/* Scrollable Form Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 flex-1 text-gray-800">
           
-          {/* 1. Profile Picture Studio */}
+          {/* 1. Biometric Profile Photo (Synced with Face Authentication) */}
           <div className="bg-stone-50 rounded-3xl p-5 border-2 border-stone-200 space-y-4">
             <div className="flex items-center justify-between">
               <label className="text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
-                <Camera className="w-4 h-4 text-amber-600" />
-                Profile Picture
+                <Camera className="w-4 h-4 text-[#2794EB]" />
+                Profile Photo
               </label>
-              <span className="text-xs font-bold text-gray-500">
-                Select preset, upload, or paste link
-              </span>
+              {faceDescriptor && faceDescriptor.length > 0 ? (
+                <span className="text-xs font-black text-emerald-700 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-2xs">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  Face ID Photo
+                </span>
+              ) : (
+                <span className="text-xs font-bold text-slate-500 bg-slate-200 px-2.5 py-0.5 rounded-full border border-slate-300">
+                  Standard Photo
+                </span>
+              )}
             </div>
 
-            {/* Current Avatar Preview & Quick Switcher */}
-            <div className="flex flex-col sm:flex-row items-center gap-5">
-              <div className="relative group shrink-0">
+            {/* Current Avatar Preview & Face ID Sync explanation */}
+            <div className="flex flex-col sm:flex-row items-center gap-5 bg-white p-4 rounded-2xl border-2 border-stone-200 shadow-2xs">
+              <div className="relative shrink-0">
                 <img
                   src={avatar}
                   alt={name || 'Avatar'}
-                  className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl object-cover border-4 border-amber-400 shadow-md bg-stone-200"
+                  className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl object-cover border-4 border-[#47D6B6] shadow-md bg-stone-200"
                   onError={(e) => {
                     (e.target as HTMLImageElement).src =
                       'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80';
                   }}
                 />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute -bottom-2 -right-2 p-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white shadow-md border-2 border-white transition-transform active:scale-95 cursor-pointer"
-                  title="Upload from device"
-                >
-                  <Upload className="w-4 h-4" />
-                </button>
+                {faceDescriptor && faceDescriptor.length > 0 && (
+                  <div 
+                    className="absolute -bottom-2 -right-2 p-1.5 rounded-xl text-white shadow-md border-2 border-white"
+                    style={{ backgroundColor: '#2794EB' }}
+                    title="Face Biometrics Verified"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                )}
               </div>
 
-              {/* Photo Options Navigation Tabs */}
-              <div className="flex-1 w-full space-y-2.5">
-                <div className="flex items-center bg-stone-200/80 p-1 rounded-2xl gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      soundEffects.playGentleTap();
-                      setPhotoTab('presets');
-                    }}
-                    className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                      photoTab === 'presets'
-                        ? 'bg-white text-gray-950 shadow-xs'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    ✨ Curated Presets
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      soundEffects.playGentleTap();
-                      setPhotoTab('upload');
-                    }}
-                    className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                      photoTab === 'upload'
-                        ? 'bg-white text-gray-950 shadow-xs'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    📁 Upload File
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      soundEffects.playGentleTap();
-                      setPhotoTab('url');
-                    }}
-                    className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                      photoTab === 'url'
-                        ? 'bg-white text-gray-950 shadow-xs'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    🔗 Image URL
-                  </button>
+              <div className="flex-1 text-center sm:text-left space-y-2.5">
+                <div>
+                  <h4 className="text-sm font-black text-slate-900 flex items-center justify-center sm:justify-start gap-1.5">
+                    <span>Face Authentication Profile Photo</span>
+                    <Sparkles className="w-3.5 h-3.5 text-[#2794EB]" />
+                  </h4>
+                  <p className="text-xs text-slate-600 font-medium leading-relaxed mt-0.5">
+                    Your profile photo is automatically updated and synced when you authenticate your face or re-enroll your Face ID biometrics.
+                  </p>
                 </div>
 
-                {/* Tab 1: Presets Gallery */}
-                {photoTab === 'presets' && (
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-1">
-                    {presetList.map((preset) => (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        onClick={() => {
-                          soundEffects.playGentleTap();
-                          setAvatar(preset.url);
-                        }}
-                        className={`group relative rounded-2xl overflow-hidden border-2 transition-all cursor-pointer aspect-square ${
-                          avatar === preset.url
-                            ? 'border-amber-500 ring-3 ring-amber-300 scale-102'
-                            : 'border-stone-300 hover:border-amber-400'
-                        }`}
-                        title={`${preset.label} (${preset.description})`}
-                      >
-                        <img
-                          src={preset.url}
-                          alt={preset.label}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                        {avatar === preset.url && (
-                          <div className="absolute inset-0 bg-amber-500/30 flex items-center justify-center">
-                            <Check className="w-5 h-5 text-white stroke-[3]" />
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Tab 2: Upload File */}
-                {photoTab === 'upload' && (
-                  <div className="p-3 bg-white rounded-2xl border-2 border-dashed border-amber-300 flex flex-col items-center justify-center text-center gap-2">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
-                    <Upload className="w-7 h-7 text-amber-600" />
-                    <div>
-                      <p className="text-xs font-bold text-gray-800">
-                        Choose an image from your device
-                      </p>
-                      <p className="text-[11px] text-gray-500">
-                        PNG, JPG, WebP (Max 4MB)
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-4 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 font-black text-xs border border-amber-300 cursor-pointer transition-colors"
-                    >
-                      Browse Device
-                    </button>
-                  </div>
-                )}
-
-                {/* Tab 3: Custom Web Link */}
-                {photoTab === 'url' && (
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      placeholder="https://example.com/photo.jpg"
-                      value={customUrlInput}
-                      onChange={(e) => setCustomUrlInput(e.target.value)}
-                      className="flex-1 px-3 py-2 text-xs rounded-xl border-2 border-stone-300 focus:border-amber-500 focus:outline-none bg-white font-medium"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleApplyCustomUrl}
-                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-gray-950 text-xs font-black cursor-pointer shadow-xs"
-                    >
-                      Apply
-                    </button>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundEffects.playGentleTap();
+                    setIsFaceScannerOpen(true);
+                  }}
+                  className="py-2.5 px-4 rounded-xl text-white font-black text-xs sm:text-sm inline-flex items-center justify-center gap-2 cursor-pointer shadow-2xs hover:shadow-md transition-all active:scale-98 border border-[#47D6B6]"
+                  style={{ background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' }}
+                >
+                  <Camera className="w-4 h-4 text-white" />
+                  <span>Scan Face to Update Photo & Biometrics</span>
+                </button>
               </div>
             </div>
           </div>
@@ -580,33 +363,44 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 </div>
               </div>
 
-              {/* Location */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-700">
-                  Home City / Region
-                </label>
+              {/* Location (North Eastern Region of India Only) */}
+              <div className="space-y-1.5 p-3 rounded-2xl bg-amber-50/50 border border-amber-200">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-gray-700 flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Location (North East Region, India)</span>
+                  </label>
+                  <span className="text-[10px] font-black text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded-full">
+                    NER India Only
+                  </span>
+                </div>
                 <div className="relative">
-                  <MapPin className="w-4 h-4 absolute left-3 top-3.5 text-gray-400" />
                   <input
                     type="text"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
-                    placeholder="Guwahati, Assam"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl border-2 border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm font-bold bg-stone-50"
+                    placeholder="Guwahati (Kamrup Metro), Assam"
+                    className="w-full pl-3 pr-3 py-2 rounded-xl border-2 border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-xs font-bold bg-white"
                   />
                 </div>
-                {/* Popular Chips */}
-                <div className="flex flex-wrap gap-1 pt-1">
-                  {POPULAR_LOCATIONS.slice(0, 4).map((loc) => (
-                    <button
-                      key={loc}
-                      type="button"
-                      onClick={() => setLocation(loc)}
-                      className="text-[10px] px-2 py-0.5 rounded-md bg-stone-200 hover:bg-stone-300 text-stone-800 font-bold transition-colors cursor-pointer"
-                    >
-                      {loc.split(',')[0]}
-                    </button>
-                  ))}
+                {/* State quick selectors */}
+                <div className="space-y-1 pt-1">
+                  <span className="text-[10px] font-bold text-stone-500">Quick Select NE State:</span>
+                  <div className="flex flex-wrap gap-1">
+                    {NER_STATES_DATA.map((st) => (
+                      <button
+                        key={st.code}
+                        type="button"
+                        onClick={() => {
+                          const firstCity = st.major_cities[0] || st.name;
+                          setLocation(`${firstCity}, ${st.name}`);
+                        }}
+                        className="text-[10px] px-2 py-0.5 rounded-md bg-white hover:bg-amber-100 border border-amber-200 text-stone-800 font-bold transition-colors cursor-pointer"
+                      >
+                        {st.name}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -987,7 +781,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           <div className="bg-stone-50 rounded-3xl p-5 border-2 border-stone-200 space-y-4">
             <div className="flex items-center justify-between">
               <label className="text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
-                <Scan className="w-4 h-4 text-[#3E82F0]" />
+                <Scan className="w-4 h-4 text-[#2794EB]" />
                 Face ID Biometric Sign-In
               </label>
               {faceDescriptor && faceDescriptor.length > 0 ? (
@@ -1005,8 +799,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             {faceDescriptor && faceDescriptor.length > 0 ? (
               <div className="p-4 rounded-2xl bg-white border-2 border-emerald-200 space-y-3 shadow-2xs">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-[#C3F2D6] to-[#8DE5A6] flex items-center justify-center text-[#1E293B] shrink-0 shadow-2xs">
-                    <ShieldCheck className="w-5 h-5 text-emerald-700" />
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-[#2794EB] to-[#17B3C1] flex items-center justify-center text-white shrink-0 shadow-2xs">
+                    <ShieldCheck className="w-5 h-5 text-white" />
                   </div>
                   <div className="flex-1">
                     <h4 className="text-sm font-black text-slate-900">Biometric Profile Active</h4>
@@ -1052,8 +846,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             ) : (
               <div className="p-4 rounded-2xl bg-white border-2 border-dashed border-stone-300 space-y-3 shadow-2xs">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#3E82F0] shrink-0">
-                    <Camera className="w-5 h-5 text-[#3E82F0]" />
+                  <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-200 flex items-center justify-center text-[#2794EB] shrink-0">
+                    <Camera className="w-5 h-5 text-[#2794EB]" />
                   </div>
                   <div className="space-y-0.5">
                     <h4 className="text-sm font-black text-slate-900">One-Tap Camera Sign-In</h4>
@@ -1069,10 +863,10 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     soundEffects.playGentleTap();
                     setIsFaceScannerOpen(true);
                   }}
-                  className="w-full py-2.5 px-4 rounded-xl text-slate-900 font-black text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shadow-2xs hover:shadow-md transition-all active:scale-98 border border-[#8DE5A6]"
-                  style={{ background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8)' }}
+                  className="w-full py-2.5 px-4 rounded-xl text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shadow-2xs hover:shadow-md transition-all active:scale-98 border border-[#47D6B6]"
+                  style={{ background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' }}
                 >
-                  <Camera className="w-4 h-4 text-slate-900" />
+                  <Camera className="w-4 h-4 text-white" />
                   <span>Enroll Face ID Now</span>
                 </button>
               </div>
@@ -1135,11 +929,12 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             <button
               type="submit"
               disabled={isSaving}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-gray-950 font-black text-sm cursor-pointer shadow-md transition-all active:scale-98 flex items-center gap-2 border-2 border-amber-600"
+              className="px-6 py-2.5 rounded-xl text-white font-black text-sm cursor-pointer shadow-md transition-all active:scale-98 flex items-center gap-2 border border-[#47D6B6] hover:brightness-110"
+              style={{ background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' }}
             >
               {isSaving ? (
                 <>
-                  <span className="w-4 h-4 border-2 border-gray-950 border-t-transparent rounded-full animate-spin"></span>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   <span>Saving...</span>
                 </>
               ) : (
@@ -1158,10 +953,13 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
         isOpen={isFaceScannerOpen}
         onClose={() => setIsFaceScannerOpen(false)}
         userName={name.trim() || user.name}
-        onFaceCaptured={(descriptor) => {
+        onFaceCaptured={(descriptor, photoDataUrl) => {
           setFaceDescriptor(descriptor);
           setFaceRegisteredAt(new Date().toISOString());
-          setSuccessMessage('Face ID captured successfully! Click "Save Profile" below to apply changes.');
+          if (photoDataUrl) {
+            setAvatar(photoDataUrl);
+          }
+          setSuccessMessage('Face ID and profile photo updated successfully! Click "Save Profile" below to apply changes.');
           soundEffects.playSuccessChime();
         }}
       />

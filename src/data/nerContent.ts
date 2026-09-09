@@ -354,45 +354,4 @@ export const CULTURAL_ITEMS: CulturalItem[] = [
   }
 ];
 
-export const FAMILIAR_PEOPLE_SEED = [
-  {
-    id: 'fam-1',
-    user_id: 'user-bhaben',
-    name: 'Priya Barua',
-    relation: 'Granddaughter (নাতিনী)',
-    photo_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
-    notes: 'Visits Dadaji every Sunday with hot Assam tea and pitha. Loves gardening with you.',
-    voice_prompt: 'Namaskar Dadaji! It is Priya. I love you very much and I am right here for you.',
-    phone: '+91 98640 12345'
-  },
-  {
-    id: 'fam-2',
-    user_id: 'user-bhaben',
-    name: 'Rohan Barua',
-    relation: 'Son (ল’ৰা)',
-    photo_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
-    notes: 'Calls every evening at 7:00 PM from Guwahati High Court. Enjoys old Rabha sangeet.',
-    voice_prompt: 'Deuta, this is Rohan. Hope you had your evening walk and tea!',
-    phone: '+91 98640 67890'
-  },
-  {
-    id: 'fam-3',
-    user_id: 'user-bhaben',
-    name: 'Nilav Barua',
-    relation: 'Grandson (নাতি)',
-    photo_url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=300&q=80',
-    notes: 'Studies in college, loves asking Dadaji stories of old Brahmaputra boat rides.',
-    voice_prompt: 'Koka, Nilav here! Keep playing your games, you are doing awesome!',
-    phone: '+91 98640 99887'
-  },
-  {
-    id: 'fam-4',
-    user_id: 'user-bhaben',
-    name: 'Dr. B. K. Hazarika',
-    relation: 'Family Physician (পৰিয়ালৰ চিকিৎসক)',
-    photo_url: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=300&q=80',
-    notes: 'Kindly checks blood pressure every alternate Thursday at Silpukhuri clinic.',
-    voice_prompt: 'Namaskar Bhaben Da, keep up the daily puzzles and remember to stay hydrated.',
-    phone: '+91 98640 55443'
-  }
-];
+export const FAMILIAR_PEOPLE_SEED: any[] = [];

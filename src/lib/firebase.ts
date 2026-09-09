@@ -38,7 +38,7 @@ export const db = (() => {
   try {
     if (typeof window !== 'undefined') {
       return initializeFirestore(app, {
-        experimentalAutoDetectLongPolling: true,
+        experimentalForceLongPolling: true,
         ignoreUndefinedProperties: true,
       }, dbId);
     }
@@ -135,7 +135,7 @@ export async function saveUserToFirebase(user: User): Promise<void> {
   }
 }
 
-export async function updateUserFaceDescriptor(userId: string, descriptor: number[]): Promise<User | null> {
+export async function updateUserFaceDescriptor(userId: string, descriptor: number[], newAvatar?: string): Promise<User | null> {
   try {
     const userRef = doc(db, USERS_COLLECTION, userId);
     const snap = await getDoc(userRef);
@@ -145,6 +145,7 @@ export async function updateUserFaceDescriptor(userId: string, descriptor: numbe
         ...existing,
         face_descriptor: descriptor,
         face_registered_at: new Date().toISOString(),
+        ...(newAvatar ? { avatar: newAvatar } : {}),
         updated_at: new Date().toISOString(),
       } as any;
       await setDoc(userRef, cleanForFirestore(updated), { merge: true });
@@ -154,6 +155,28 @@ export async function updateUserFaceDescriptor(userId: string, descriptor: numbe
     return null;
   } catch (err) {
     console.warn('Error updating face descriptor in Firebase:', err);
+    return null;
+  }
+}
+
+export async function updateUserAvatar(userId: string, newAvatar: string): Promise<User | null> {
+  try {
+    const userRef = doc(db, USERS_COLLECTION, userId);
+    const snap = await getDoc(userRef);
+    if (snap.exists()) {
+      const existing = snap.data() as User;
+      const updated: User = {
+        ...existing,
+        avatar: newAvatar,
+        updated_at: new Date().toISOString(),
+      } as any;
+      await setDoc(userRef, cleanForFirestore(updated), { merge: true });
+      persistUserLocally(updated);
+      return updated;
+    }
+    return null;
+  } catch (err) {
+    console.warn('Error updating avatar in Firebase:', err);
     return null;
   }
 }
@@ -599,11 +622,60 @@ export function clearRememberedUser(): void {
   try {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(REMEMBERED_USER_KEY);
-      // NOTE: We deliberately DO NOT delete smritisaathi_saved_profiles_registry here!
-      // All profiles remain stored so users can easily select or switch profiles.
+      localStorage.removeItem(ALL_PROFILES_LOCAL_REGISTRY_KEY);
     }
   } catch (e) {
     console.warn('Could not clear remembered user:', e);
+  }
+}
+
+/**
+ * Completely purges all user IDs, caregiver links, reminders, alerts, and sessions
+ * from Firestore, local storage, and backend disk.
+ */
+export async function deleteAllUsersAndResetDatabase(): Promise<{ success: boolean; message: string }> {
+  try {
+    // 1. Clear Local Storage
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(REMEMBERED_USER_KEY);
+      localStorage.removeItem(ALL_PROFILES_LOCAL_REGISTRY_KEY);
+      localStorage.removeItem(LOCAL_ALERTS_KEY);
+      localStorage.removeItem('smritisaathi_cached_alerts');
+    }
+
+    // 2. Clear Firebase Firestore Collections
+    const collectionsToClear = [
+      USERS_COLLECTION,
+      LINKS_COLLECTION,
+      REMINDERS_COLLECTION,
+      ALERTS_COLLECTION,
+      JOURNALS_COLLECTION,
+      FAMILY_COLLECTION,
+      SESSIONS_COLLECTION,
+    ];
+
+    for (const collName of collectionsToClear) {
+      try {
+        const snap = await getDocs(collection(db, collName));
+        for (const docSnap of snap.docs) {
+          await deleteDoc(doc(db, collName, docSnap.id)).catch(() => {});
+        }
+      } catch (e) {
+        console.warn(`Could not clear collection ${collName}:`, e);
+      }
+    }
+
+    // 3. Clear Backend in-memory & file storage
+    try {
+      await fetch('/api/admin/clear-all-users', { method: 'POST' });
+    } catch (e) {
+      console.warn('Backend clear endpoint call:', e);
+    }
+
+    return { success: true, message: 'All user IDs and records have been deleted successfully.' };
+  } catch (err) {
+    console.error('Error during database reset:', err);
+    return { success: false, message: 'Failed to delete some records.' };
   }
 }
 

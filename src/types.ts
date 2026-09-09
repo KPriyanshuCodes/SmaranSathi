@@ -251,6 +251,7 @@ export interface TrendData {
 export interface AIRecommendation {
   recommended_difficulty: DifficultyLevel;
   next_game_type: GameType;
+  recommended_game_title?: string;
   engagement_score: number;
   rationale: string;
   observation_note: string;
@@ -258,6 +259,22 @@ export interface AIRecommendation {
   recent_trend: 'improving' | 'stable' | 'attention_needed' | 'insufficient_data';
   has_gaming_data?: boolean;
   total_games_analyzed?: number;
+  
+  // Gemini AI Cognitive Intelligence Fields
+  ai_powered?: boolean;
+  clinical_reasoning?: string;
+  cognitive_focus_domain?: string;
+  patient_encouragement_message?: string;
+  patient_voice_prompt?: string;
+  caregiver_actionable_tip?: string;
+  expected_therapeutic_benefit?: string;
+  confidence_score?: number;
+  adaptive_level_suggestion?: number;
+  cognitive_domains_summary?: {
+    memory?: string;
+    attention?: string;
+    speed?: string;
+  };
 }
 
 export interface CulturalItem {
@@ -348,8 +365,8 @@ export interface DataLakeSummary {
 }
 
 // UI/UX Design System & Layout Archetypes
-export type UILayoutMode = 'standard' | 'bento' | 'split' | 'zen';
-export type UIThemePalette = 'default' | 'terracotta' | 'pine' | 'sundown';
+export type UILayoutMode = 'standard' | 'bento' | 'split' | 'zen' | 'compact' | 'heritage';
+export type UIThemePalette = 'default' | 'terracotta' | 'pine' | 'sundown' | 'dzukou' | 'kanchenjunga' | 'monochrome';
 export type UITextScale = 'normal' | 'large' | 'xlarge';
 
 export interface UIUXSettings {

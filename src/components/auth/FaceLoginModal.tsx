@@ -26,7 +26,31 @@ import {
   FaceDetectionResult 
 } from '../../services/faceRecognitionService';
 import { soundEffects } from '../../utils/speechAndAudio';
-import { saveUserToFirebase, updateUserFaceDescriptor, saveRememberedUser } from '../../lib/firebase';
+import { saveUserToFirebase, updateUserFaceDescriptor, updateUserAvatar, saveRememberedUser } from '../../lib/firebase';
+
+// Helper to capture a centered, mirrored square photo from the video feed
+function captureFaceSnapshot(video: HTMLVideoElement): string | null {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 320;
+    canvas.height = 320;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    const vw = video.videoWidth || 640;
+    const vh = video.videoHeight || 480;
+    const size = Math.min(vw, vh);
+    const sx = (vw - size) / 2;
+    const sy = (vh - size) / 2;
+    // Mirror horizontally so it matches the selfie preview
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, sx, sy, size, size, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.85);
+  } catch (e) {
+    console.warn('Failed to capture face snapshot in modal:', e);
+    return null;
+  }
+}
 
 interface FaceLoginModalProps {
   isOpen: boolean;
@@ -243,19 +267,38 @@ export const FaceLoginModal: React.FC<FaceLoginModalProps> = ({
           if (matchResult.matchFound && matchResult.bestMatch) {
             const userMatch = users.find((u) => u.id === matchResult.bestMatch!.userId);
             if (userMatch) {
-              setMatchedUser(userMatch);
+              // Capture authenticated face snapshot from camera to use as profile photo
+              const liveFacePhoto = videoRef.current ? captureFaceSnapshot(videoRef.current) : null;
+              const userWithAuthPhoto: User = {
+                ...userMatch,
+                ...(liveFacePhoto ? { avatar: liveFacePhoto } : {})
+              };
+
+              if (liveFacePhoto) {
+                updateUserAvatar(userMatch.id, liveFacePhoto).catch(() => {});
+                fetch(`/api/users`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(userWithAuthPhoto),
+                }).catch(() => {});
+              }
+
+              setMatchedUser(userWithAuthPhoto);
               setMatchScore(matchResult.bestMatch.similarityPercentage);
               setRecentBestDistance(matchResult.distance);
               setFeedbackType('success');
-              setDetectionFeedback(`Login successful! Welcome back, ${userMatch.name}!`);
+              setDetectionFeedback(`Login successful! Welcome back, ${userMatch.name}! Profile photo synchronized.`);
               soundEffects.playSuccessChime();
 
               // Auto login after short moment
               setTimeout(() => {
                 if (isMountedRef.current) {
                   stopCamera();
-                  saveRememberedUser(userMatch);
-                  onLogin(userMatch);
+                  saveRememberedUser(userWithAuthPhoto);
+                  if (onUpdateUser) {
+                    onUpdateUser(userWithAuthPhoto);
+                  }
+                  onLogin(userWithAuthPhoto);
                   onClose();
                 }
               }, 1200);
@@ -316,13 +359,17 @@ export const FaceLoginModal: React.FC<FaceLoginModalProps> = ({
       setEnrollLoading(true);
       setDetectionFeedback('Saving face embedding to profile...');
 
-      // 1. Update in Firebase
-      const updatedUser = await updateUserFaceDescriptor(selectedUserToEnroll.id, capturedDescriptor);
+      // 1. Capture live face photo snapshot for profile picture
+      const liveFacePhoto = videoRef.current ? captureFaceSnapshot(videoRef.current) : null;
+
+      // 2. Update in Firebase
+      const updatedUser = await updateUserFaceDescriptor(selectedUserToEnroll.id, capturedDescriptor, liveFacePhoto || undefined);
       
       const finalUser: User = updatedUser || {
         ...selectedUserToEnroll,
         face_descriptor: capturedDescriptor,
         face_registered_at: new Date().toISOString(),
+        ...(liveFacePhoto ? { avatar: liveFacePhoto } : {}),
       };
 
       // 2. Update local disk/backend API
@@ -363,7 +410,7 @@ export const FaceLoginModal: React.FC<FaceLoginModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in overflow-y-auto">
-      <div className="w-full max-w-xl bg-[#FAFAFA] rounded-[32px] p-5 sm:p-7 border-2 border-[#8DE5A6] shadow-xl space-y-5 relative my-auto">
+      <div className="w-full max-w-xl bg-[#FAFAFA] rounded-[32px] p-5 sm:p-7 border-2 border-[#47D6B6] shadow-xl space-y-5 relative my-auto">
         
         {/* Close Button */}
         <button
@@ -381,15 +428,15 @@ export const FaceLoginModal: React.FC<FaceLoginModalProps> = ({
         {/* Modal Header */}
         <div className="text-center space-y-1.5 pt-1">
           <div 
-            style={{ background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' }}
-            className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center text-[#1E293B] shadow-md border border-[#6BC1B8]"
+            style={{ background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' }}
+            className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center text-white shadow-md border border-[#47D6B6]"
           >
             <Camera className="w-7 h-7" />
           </div>
           
           <h2 className="text-2xl sm:text-3xl font-black text-[#1E293B] flex items-center justify-center gap-2">
             <span>Face ID Authentication</span>
-            <span className="text-xs bg-[#3E82F0] text-white px-2.5 py-0.5 rounded-full font-black">
+            <span className="text-xs bg-[#2794EB] text-white px-2.5 py-0.5 rounded-full font-black">
               Biometric AI
             </span>
           </h2>
@@ -417,7 +464,7 @@ export const FaceLoginModal: React.FC<FaceLoginModalProps> = ({
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <UserCheck className="w-4 h-4 text-[#3E82F0]" />
+            <UserCheck className="w-4 h-4 text-[#2794EB]" />
             <span>Sign In with Face</span>
           </button>
 
@@ -436,7 +483,7 @@ export const FaceLoginModal: React.FC<FaceLoginModalProps> = ({
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Sparkles className="w-4 h-4 text-[#3E82F0]" />
+            <Sparkles className="w-4 h-4 text-[#2794EB]" />
             <span>Enroll / Register Face</span>
           </button>
         </div>
@@ -468,7 +515,7 @@ export const FaceLoginModal: React.FC<FaceLoginModalProps> = ({
         {/* Video Camera Container */}
         {!cameraError && (
           <div className="space-y-4">
-            <div className="relative w-full aspect-4/3 max-w-md mx-auto rounded-3xl overflow-hidden bg-slate-900 border-4 border-[#8DE5A6] shadow-inner flex items-center justify-center">
+            <div className="relative w-full aspect-4/3 max-w-md mx-auto rounded-3xl overflow-hidden bg-slate-900 border-4 border-[#47D6B6] shadow-inner flex items-center justify-center">
               
               {/* Actual Video Element */}
               <video
@@ -484,7 +531,7 @@ export const FaceLoginModal: React.FC<FaceLoginModalProps> = ({
               {/* Loading Spinner overlay before camera starts */}
               {!cameraActive && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 space-y-2 p-4">
-                  <RefreshCw className="w-8 h-8 animate-spin text-[#8DE5A6]" />
+                  <RefreshCw className="w-8 h-8 animate-spin text-[#47D6B6]" />
                   <span className="text-xs font-bold">Connecting to camera & AI models...</span>
                 </div>
               )}
@@ -493,9 +540,9 @@ export const FaceLoginModal: React.FC<FaceLoginModalProps> = ({
               {cameraActive && !matchedUser && !enrollSuccess && (
                 <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                   {/* Subtle darkened vignette around target */}
-                  <div className="w-52 sm:w-60 h-64 sm:h-72 rounded-[45%] border-3 border-dashed border-[#8DE5A6] shadow-[0_0_0_9999px_rgba(15,23,42,0.35)] relative animate-pulse flex items-center justify-center">
+                  <div className="w-52 sm:w-60 h-64 sm:h-72 rounded-[45%] border-3 border-dashed border-[#47D6B6] shadow-[0_0_0_9999px_rgba(15,23,42,0.35)] relative animate-pulse flex items-center justify-center">
                     {/* Horizontal Scan Laser Bar */}
-                    <div className="absolute top-0 left-4 right-4 h-0.5 bg-gradient-to-r from-transparent via-[#8DE5A6] to-transparent shadow-[0_0_8px_#8DE5A6] animate-bounce" />
+                    <div className="absolute top-0 left-4 right-4 h-0.5 bg-gradient-to-r from-transparent via-[#47D6B6] to-transparent shadow-[0_0_8px_#47D6B6] animate-bounce" />
                     
                     {/* Crosshair corners */}
                     <div className="absolute top-3 left-4 w-4 h-4 border-t-2 border-l-2 border-white" />
@@ -611,89 +658,80 @@ export const FaceLoginModal: React.FC<FaceLoginModalProps> = ({
 
             {/* If in Mode 2 (ENROLLMENT) Form */}
             {mode === 'enroll' && !enrollSuccess && (
-              <div className="p-4 rounded-2xl bg-white border-2 border-[#8DE5A6] space-y-3.5 shadow-2xs">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-black text-[#1E293B]">
-                    Select Profile to Link Face ID:
-                  </label>
-                  <span className="text-[11px] font-bold text-[#3E82F0]">
-                    {users.length} profiles available
-                  </span>
-                </div>
+              <div className="p-4 rounded-2xl bg-white border-2 border-[#47D6B6] space-y-3.5 shadow-2xs">
+                {targetEnrollUser ? (
+                  <div className="p-3 rounded-xl bg-blue-50 border border-blue-200">
+                    <p className="text-xs font-black text-[#1E293B]">
+                      Enrolling Face ID for: <span className="text-[#2794EB]">{targetEnrollUser.name}</span>
+                    </p>
+                    <p className="text-[11px] text-slate-600 font-bold">
+                      {targetEnrollUser.role === 'elderly' ? 'Senior Citizen Profile' : 'Caregiver Profile'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-[#1E293B]">
+                      Enrollment Note:
+                    </label>
+                    <p className="text-xs text-slate-600 font-bold">
+                      To register a new Face ID, please use the registration form on the main screen or open "Edit Profile" after logging in.
+                    </p>
+                  </div>
+                )}
 
-                <select
-                  value={selectedUserToEnroll?.id || ''}
-                  onChange={(e) => {
-                    const u = users.find((x) => x.id === e.target.value);
-                    setSelectedUserToEnroll(u || null);
-                  }}
-                  className="w-full min-h-[44px] px-3 rounded-xl border-2 border-[#8DE5A6] bg-[#FAFAFA] text-sm font-bold text-[#1E293B] outline-none"
-                >
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({u.role === 'elderly' ? 'Senior' : 'Caregiver'}) {u.face_descriptor ? '✓ Has Face ID' : '(No Face ID)'}
-                    </option>
-                  ))}
-                </select>
+                {targetEnrollUser && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-[#1E293B] flex items-center justify-between">
+                      <span>Enter 4-digit PIN (for verification):</span>
+                      <span className="text-[11px] text-slate-500 font-bold">4-digit PIN</span>
+                    </label>
+                    <input
+                      type="password"
+                      maxLength={4}
+                      inputMode="numeric"
+                      value={enrollPin}
+                      onChange={(e) => setEnrollPin(e.target.value.replace(/\D/g, ''))}
+                      placeholder="Enter PIN to authorize face enrollment"
+                      className="w-full min-h-[44px] px-3 rounded-xl border-2 border-slate-200 bg-[#FAFAFA] text-sm font-black tracking-widest text-[#1E293B] outline-none"
+                    />
+                  </div>
+                )}
 
-                <div className="space-y-1">
-                  <label className="text-xs font-black text-[#1E293B] flex items-center justify-between">
-                    <span>Enter Profile PIN (for authorization):</span>
-                    <span className="text-[11px] text-slate-500 font-bold">4-digit PIN</span>
-                  </label>
-                  <input
-                    type="password"
-                    maxLength={4}
-                    inputMode="numeric"
-                    value={enrollPin}
-                    onChange={(e) => setEnrollPin(e.target.value.replace(/\D/g, ''))}
-                    placeholder="Enter PIN to authorize face enrollment"
-                    className="w-full min-h-[44px] px-3 rounded-xl border-2 border-slate-200 bg-[#FAFAFA] text-sm font-black tracking-widest text-[#1E293B] outline-none"
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleSaveEnrollment}
-                  disabled={!capturedDescriptor || enrollLoading || !selectedUserToEnroll}
-                  style={{ background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' }}
-                  className="w-full min-h-[48px] rounded-xl text-[#0F172A] font-black text-sm border border-[#6BC1B8] shadow-xs hover:brightness-105 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                >
-                  {enrollLoading ? (
-                    <span>Registering Biometric Embedding...</span>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 text-[#0F172A]" />
-                      <span>
-                        {capturedDescriptor 
-                          ? `Save Face ID for ${selectedUserToEnroll?.name.split(' ')[0]}` 
-                          : 'Scan Face Above First'}
-                      </span>
-                    </>
-                  )}
-                </button>
+                {targetEnrollUser && (
+                  <button
+                    type="button"
+                    onClick={handleSaveEnrollment}
+                    disabled={!capturedDescriptor || enrollLoading || !selectedUserToEnroll}
+                    style={{ background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' }}
+                    className="w-full min-h-[48px] rounded-xl text-white font-black text-sm border border-[#47D6B6] shadow-xs hover:brightness-105 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {enrollLoading ? (
+                      <span>Registering Biometric Embedding...</span>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-white" />
+                        <span>
+                          {capturedDescriptor 
+                            ? `Save Face ID for ${selectedUserToEnroll?.name.split(' ')[0]}` 
+                            : 'Scan Face Above First'}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             )}
 
-            {/* Enrolled Profiles Quick Reference in Login Mode */}
-            {mode === 'login' && enrolledUsers.length > 0 && (
-              <div className="p-3 rounded-2xl bg-white border border-slate-200 space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] font-black text-slate-500 uppercase tracking-wider">
-                  <span>Enrolled Face IDs ({enrolledUsers.length}):</span>
-                  <span className="text-[#3E82F0] font-bold">Threshold: &le; 0.6</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {enrolledUsers.map((u) => (
-                    <span 
-                      key={u.id}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-[#1E293B] text-xs font-bold border border-slate-200"
-                    >
-                      <span>{u.role === 'elderly' ? '👵' : '🩺'}</span>
-                      <span>{u.name}</span>
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                    </span>
-                  ))}
-                </div>
+            {/* Privacy Shield Notice in Login Mode */}
+            {mode === 'login' && (
+              <div className="p-3 rounded-2xl bg-white border border-slate-200 flex items-center justify-between text-xs font-bold text-slate-600">
+                <span className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>Private Biometric Match Active</span>
+                </span>
+                <span className="text-[11px] text-[#17B3C1] font-black">
+                  Zero-Knowledge Matching
+                </span>
               </div>
             )}
           </div>
@@ -711,7 +749,7 @@ export const FaceLoginModal: React.FC<FaceLoginModalProps> = ({
             }}
             className="w-full min-h-[48px] rounded-xl bg-white hover:bg-slate-100 text-[#1E293B] border-2 border-slate-300 text-xs sm:text-sm font-black flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-2xs"
           >
-            <KeyRound className="w-4 h-4 text-[#3E82F0]" />
+            <KeyRound className="w-4 h-4 text-[#2794EB]" />
             <span>Cancel & Use 4-Digit PIN Login</span>
           </button>
 

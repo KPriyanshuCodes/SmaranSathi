@@ -271,70 +271,22 @@ export const ConnectCaregiverModal: React.FC<ConnectCaregiverModalProps> = ({
           </button>
         </div>
 
-        {/* Quick Connect Options / Available Caregivers */}
-        <div className="pt-2 border-t-2 border-dashed border-gray-200 space-y-3">
-          <p className="text-xs font-black text-gray-500 uppercase tracking-wider text-center">
-            Or select your caregiver if they are already registered:
+        {/* Private Caregiver Connection Guidance */}
+        <div className="p-4 bg-slate-50 rounded-2xl border-2 border-slate-200 space-y-2 text-left">
+          <div className="flex items-center gap-2 text-xs font-black text-slate-800">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Private Caregiver Connection</span>
+          </div>
+          <p className="text-xs text-slate-600 font-medium leading-relaxed">
+            Please enter the unique Caregiver Code (e.g., <span className="font-mono font-bold text-slate-800">CG-XXXX</span>) given to you by your family member, doctor, or nurse. For your privacy, caregiver IDs are never displayed publicly.
           </p>
-
-          {availableCaregivers.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {availableCaregivers.map((cg) => (
-                <button
-                  key={cg.id}
-                  type="button"
-                  onClick={() => {
-                    setCaregiverCode(cg.caregiver_code || cg.id);
-                    handleSubmit(cg.caregiver_code || cg.id);
-                  }}
-                  className="p-3 rounded-2xl bg-gray-50 hover:bg-amber-100/70 border-2 border-gray-200 hover:border-amber-300 text-left flex items-center gap-3 transition-colors cursor-pointer group"
-                >
-                  <div className="w-10 h-10 rounded-xl bg-amber-200 flex items-center justify-center text-amber-900 font-black text-xs">
-                    {cg.caregiver_code || 'CG'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-black text-gray-900 truncate group-hover:text-amber-950">
-                      {cg.name}
-                    </p>
-                    <p className="text-[11px] text-amber-700 font-bold truncate">
-                      ID: {cg.caregiver_code || cg.id}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="p-3 rounded-2xl bg-amber-50/70 border-2 border-amber-200/80 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-amber-700 shrink-0" />
-                <div className="text-left">
-                  <p className="text-xs font-black text-gray-900">
-                    Need a quick caregiver ID?
-                  </p>
-                  <p className="text-[11px] text-gray-600 font-semibold">
-                    Use default Caregiver ID: <span className="font-mono font-black text-amber-800">CG-101</span>
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setCaregiverCode('CG-101');
-                  handleSubmit('CG-101');
-                }}
-                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-gray-950 text-xs font-black shrink-0 border border-amber-600 shadow-sm cursor-pointer"
-              >
-                Use CG-101
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Informative Note */}
         <div className="p-3 bg-blue-50 rounded-2xl border border-blue-200 flex items-start gap-2.5 text-xs text-blue-900">
           <HelpCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
           <p className="leading-relaxed">
-            <span className="font-bold">Why do I need a Caregiver ID?</span> Your caregiver configures your personal family album, schedules audible medicine alerts, and helps monitor your daily cognitive activities.
+            <span className="font-bold">Why link a Caregiver?</span> Your caregiver can schedule your medicine audio reminders, upload family face photos, and review your daily memory milestones.
           </p>
         </div>
 

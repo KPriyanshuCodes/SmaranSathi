@@ -15,14 +15,15 @@ import {
   Sparkles,
   Printer
 } from 'lucide-react';
-import { ConsultationDoctor, ConsultationAppointment, User as PatientUser } from '../../types';
+import { ConsultationDoctor, ConsultationAppointment, User as PatientUser, RegionalLanguage } from '../../types';
 import { soundEffects } from '../../utils/soundEffects';
 
 interface ConsultationPortalViewProps {
   user: PatientUser;
+  language?: RegionalLanguage;
 }
 
-export const ConsultationPortalView: React.FC<ConsultationPortalViewProps> = ({ user }) => {
+export const ConsultationPortalView: React.FC<ConsultationPortalViewProps> = ({ user, language = 'en' }) => {
   const [doctors, setDoctors] = useState<ConsultationDoctor[]>([]);
   const [appointments, setAppointments] = useState<ConsultationAppointment[]>([]);
   const [loading, setLoading] = useState(true);

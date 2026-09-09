@@ -35,7 +35,7 @@ export const CommunityImpactView: React.FC = () => {
   // New Post Form
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
-  const [authorName, setAuthorName] = useState('Dr. Priya Barua');
+  const [authorName, setAuthorName] = useState('');
   const [authorRole, setAuthorRole] = useState('Primary Caregiver');
   const [location, setLocation] = useState('Guwahati, Assam');
   const [selectedTag, setSelectedTag] = useState('Sundowning');

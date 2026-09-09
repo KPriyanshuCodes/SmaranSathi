@@ -38,7 +38,9 @@ import {
   Target,
   TrendingUp,
   BarChart2,
-  Check
+  Check,
+  Palette,
+  Globe
 } from 'lucide-react';
 import { 
   User, 
@@ -52,12 +54,15 @@ import {
   TrendData, 
   PatientGamingAnalysis, 
   CognitiveDomainScore, 
-  GameSession 
+  GameSession,
+  RegionalLanguage
 } from '../../types';
 import { IntegratedCareView } from '../care/IntegratedCareView';
 import { ConsultationPortalView } from '../consultation/ConsultationPortalView';
 import { ScheduleRemindersManager } from './ScheduleRemindersManager';
 import { soundEffects } from '../../utils/speechAndAudio';
+import { CAREGIVER_TRANSLATIONS } from '../../data/caregiverTranslations';
+import { LANGUAGE_LABELS } from '../../data/nerContent';
 
 interface CaregiverDashboardProps {
   caregiverUser?: User;
@@ -79,6 +84,9 @@ interface CaregiverDashboardProps {
   onOpenJournal?: () => void;
   onTriggerAlarm?: (reminder: Reminder) => void;
   trendData: TrendData | null;
+  language?: RegionalLanguage;
+  onLanguageChange?: (lang: RegionalLanguage) => void;
+  onRefreshRecommendation?: () => Promise<any>;
 }
 
 export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
@@ -101,10 +109,31 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
   onOpenJournal,
   onTriggerAlarm,
   trendData,
+  language,
+  onLanguageChange,
+  onRefreshRecommendation,
 }) => {
+  const currentLang: RegionalLanguage = language || caregiverUser?.language_pref || 'en';
+  const t = CAREGIVER_TRANSLATIONS[currentLang] || CAREGIVER_TRANSLATIONS.en;
+  const [copiedCode, setCopiedCode] = useState(false);
   const [activeTab, setActiveTab] = useState<'trends' | 'care' | 'consultation' | 'reminders' | 'alerts' | 'people'>('trends');
   const [showAddReminderModal, setShowAddReminderModal] = useState(false);
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
+  const [isRefreshingAI, setIsRefreshingAI] = useState(false);
+
+  const handleRefreshAI = async () => {
+    if (!onRefreshRecommendation || isRefreshingAI) return;
+    setIsRefreshingAI(true);
+    soundEffects.playGentleTap();
+    try {
+      await onRefreshRecommendation();
+      soundEffects.playSuccessChime();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsRefreshingAI(false);
+    }
+  };
 
   // Connect Patient direct linking state
   const [patientLinkInput, setPatientLinkInput] = useState('');
@@ -207,97 +236,121 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
       {/* Caregiver ID & Connection Code Bar with Theme Gradient */}
       {caregiverUser && (
         <div 
-          style={{ background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' }}
-          className="text-[#1E293B] rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 border-2 border-[#6BC1B8]"
+          style={{ background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' }}
+          className="text-white rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 border-2 border-[#47D6B6]"
         >
           <div className="flex items-center gap-3.5 text-center sm:text-left">
-            <div className="w-12 h-12 rounded-2xl bg-white/90 border-2 border-[#8DE5A6] flex items-center justify-center font-black text-[#1E293B] text-base shrink-0 shadow-2xs">
+            <div className="w-12 h-12 rounded-2xl bg-white/90 border-2 border-[#47D6B6] flex items-center justify-center font-black text-[#2794EB] text-base shrink-0 shadow-2xs">
               CG
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-wider text-[#1E293B]">
-                  Your Unique Caregiver ID:
+                <span className="text-xs font-black uppercase tracking-wider text-white">
+                  {t.caregiver_id_title}
                 </span>
-                <span className="px-2 py-0.5 rounded-md bg-white/90 text-[#1E293B] text-[10px] font-mono font-bold border border-[#8DE5A6]">
-                  Active Link
+                <span className="px-2 py-0.5 rounded-md bg-white/90 text-[#2794EB] text-[10px] font-mono font-bold border border-[#47D6B6]">
+                  {t.active_link}
                 </span>
               </div>
-              <p className="text-2xl font-mono font-black text-[#1E293B] tracking-wider">
+              <p className="text-2xl font-mono font-black text-white tracking-wider">
                 {caregiverUser.caregiver_code || caregiverUser.id}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-[#1E293B] font-bold max-w-xs text-center sm:text-right hidden md:inline">
-              Give this ID to your elderly patient to connect their account & view their daily routine
+          <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap justify-end">
+            {onLanguageChange && (
+              <div className="flex items-center gap-1.5 bg-white/95 px-3 py-2 rounded-xl border border-[#47D6B6] shadow-2xs">
+                <Globe className="w-3.5 h-3.5 text-[#2794EB] shrink-0" />
+                <select
+                  id="caregiver-language-select"
+                  aria-label={t.language_label}
+                  value={currentLang}
+                  onChange={(e) => {
+                    soundEffects.playGentleTap();
+                    onLanguageChange(e.target.value as RegionalLanguage);
+                  }}
+                  className="bg-transparent text-xs font-black text-[#1E293B] focus:outline-none cursor-pointer"
+                >
+                  {Object.entries(LANGUAGE_LABELS).map(([code, label]) => (
+                    <option key={code} value={code} className="text-slate-900 bg-white">
+                      {label.nativeName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <span className="text-xs text-white/95 font-bold max-w-xs text-center sm:text-right hidden md:inline">
+              {t.cg_id_instruction}
             </span>
             <button
               type="button"
               onClick={() => {
                 navigator.clipboard?.writeText(caregiverUser.caregiver_code || caregiverUser.id);
                 soundEffects.playGentleTap();
+                setCopiedCode(true);
+                setTimeout(() => setCopiedCode(false), 2000);
               }}
-              className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-[#1E293B] border border-[#8DE5A6] text-xs font-black transition-all cursor-pointer shadow-sm active:translate-y-0.5"
+              className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-[#2794EB] border border-[#47D6B6] text-xs font-black transition-all cursor-pointer shadow-sm active:translate-y-0.5 whitespace-nowrap"
             >
-              Copy Caregiver ID
+              {copiedCode ? t.copied : t.copy_id}
             </button>
           </div>
         </div>
       )}
 
       {/* Prominent Ethical Guardrail Banner */}
-      <div className="bg-[#FAFAFA] border-2 border-[#8DE5A6] rounded-2xl p-4 flex items-start gap-3 text-[#1E293B] shadow-sm">
-        <Info className="w-6 h-6 text-[#3E82F0] shrink-0 mt-0.5" />
+      <div className="bg-[#FAFAFA] border-2 border-[#47D6B6] rounded-2xl p-4 flex items-start gap-3 text-[#1E293B] shadow-sm">
+        <Info className="w-6 h-6 text-[#2794EB] shrink-0 mt-0.5" />
         <div>
           <h4 className="font-black text-sm tracking-wide uppercase text-[#1E293B]">
-            Cognitive Engagement Monitoring Protocol
+            {t.monitoring_protocol}
           </h4>
           <p className="text-sm leading-relaxed text-slate-600 font-medium">
-            {trendData?.ethical_disclaimer ||
-              'This is a cognitive engagement tool, not a medical diagnosis. Consult a healthcare professional for clinical assessment.'}
+            {trendData?.ethical_disclaimer || t.ethical_disclaimer_text}
           </p>
         </div>
       </div>
 
       {/* If no patient assigned to this caregiver, show strict privacy & access protection card */}
       {(!currentPatient || allPatients.length === 0) ? (
-        <div className="bg-white rounded-3xl p-8 sm:p-12 border-2 border-[#8DE5A6] shadow-sm text-center space-y-6">
+        <div className="bg-white rounded-3xl p-8 sm:p-12 border-2 border-[#47D6B6] shadow-sm text-center space-y-6">
           <div className="w-20 h-20 mx-auto rounded-3xl bg-amber-50 border-2 border-amber-300 flex items-center justify-center text-amber-600 shadow-2xs">
             <ShieldAlert className="w-10 h-10" />
           </div>
 
           <div className="max-w-xl mx-auto space-y-2">
             <h3 className="text-2xl font-black text-slate-800">
-              Access Restricted · No Patients Assigned Yet
+              {t.access_restricted_title}
             </h3>
             <p className="text-sm text-slate-600 leading-relaxed font-medium">
-              In strict adherence to patient privacy and dementia health ethics, caregivers can <strong>only access data for senior citizens who have explicitly assigned them</strong>. Other patients' clinical profiles, medication logs, and cognitive trends are hidden and protected.
+              {t.access_restricted_desc}
             </p>
           </div>
 
           {/* Caregiver Code instructions */}
-          <div className="max-w-md mx-auto p-5 rounded-2xl bg-gradient-to-r from-[#C3F2D6]/40 via-[#8DE5A6]/30 to-[#3E82F0]/20 border-2 border-[#6BC1B8] text-left space-y-3">
+          <div className="max-w-md mx-auto p-5 rounded-2xl bg-gradient-to-r from-[#2794EB]/20 via-[#47D6B6]/20 to-[#47D6B6]/20 border-2 border-[#47D6B6] text-left space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-black uppercase tracking-wider text-slate-700">
-                Your Caregiver Code:
+                {t.caregiver_code_label}
               </span>
-              <span className="text-xs font-mono font-black text-[#1E293B] bg-white px-2.5 py-1 rounded-lg border border-[#8DE5A6]">
+              <span className="text-xs font-mono font-black text-[#2794EB] bg-white px-2.5 py-1 rounded-lg border border-[#47D6B6]">
                 {caregiverUser?.caregiver_code || caregiverUser?.id}
               </span>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed font-medium">
-              Share this code with your senior citizen patient or their family guardian. When they enter it in their app under <strong>'Connect Caregiver'</strong> or <strong>'Edit Profile'</strong>, their care profile will immediately appear on your dashboard.
+              {t.share_code_instruction}
             </p>
             <button
               type="button"
               onClick={() => {
                 navigator.clipboard?.writeText(caregiverUser?.caregiver_code || caregiverUser?.id || '');
                 soundEffects.playGentleTap();
+                setCopiedCode(true);
+                setTimeout(() => setCopiedCode(false), 2000);
               }}
-              className="w-full py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-[#8DE5A6] text-xs font-black transition-all cursor-pointer shadow-xs"
+              className="w-full py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-[#47D6B6] text-xs font-black transition-all cursor-pointer shadow-xs"
             >
-              Copy Caregiver Code to Clipboard
+              {copiedCode ? t.copied : t.copy_code_btn}
             </button>
           </div>
 
@@ -305,19 +358,19 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
           {onConnectPatient && (
             <div className="max-w-md mx-auto pt-4 border-t border-slate-100 text-left space-y-3">
               <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                <LinkIcon className="w-3.5 h-3.5 text-blue-600" />
-                Assisting a Patient? Link with Patient ID or Name
+                <LinkIcon className="w-3.5 h-3.5 text-[#2794EB]" />
+                {t.link_patient_title}
               </h4>
               <p className="text-[11px] text-slate-500 font-medium">
-                If the senior citizen requested your assistance, enter their Patient ID (e.g. PT-1001), phone number, or full name:
+                {t.link_patient_desc}
               </p>
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="Patient ID (e.g. PT-1001) / Name / Phone"
+                  placeholder="Patient ID / Name / Phone"
                   value={patientLinkInput}
                   onChange={(e) => setPatientLinkInput(e.target.value)}
-                  className="flex-1 px-3 py-2 text-xs font-bold rounded-xl border border-slate-300 bg-slate-50 outline-none focus:border-[#6BC1B8] focus:bg-white"
+                  className="flex-1 px-3 py-2 text-xs font-bold rounded-xl border border-slate-300 bg-slate-50 outline-none focus:border-[#47D6B6] focus:bg-white"
                 />
                 <button
                   type="button"
@@ -325,7 +378,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                   onClick={handleDirectConnectPatient}
                   className="px-4 py-2 text-xs font-black text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-all cursor-pointer disabled:opacity-50"
                 >
-                  {isLinkingPatient ? 'Linking...' : 'Connect'}
+                  {isLinkingPatient ? '...' : t.connect_btn}
                 </button>
               </div>
               {linkStatusMessage && (
@@ -340,8 +393,8 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
         <>
           {/* Top Patient Selector & Profile Hero Bar */}
           <div 
-            style={{ background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' }}
-            className="rounded-[32px] p-6 border-2 border-[#6BC1B8] shadow-md flex flex-col md:flex-row items-center justify-between gap-6 text-[#1E293B]"
+            style={{ background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' }}
+            className="rounded-[32px] p-6 border-2 border-[#47D6B6] shadow-md flex flex-col md:flex-row items-center justify-between gap-6 text-white"
           >
             <div className="flex items-center gap-5">
               <div className="relative group shrink-0">
@@ -358,20 +411,20 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                       soundEffects.playGentleTap();
                       onEditProfile(currentPatient);
                     }}
-                    className="absolute -bottom-1.5 -right-1.5 p-1.5 rounded-lg bg-white hover:bg-slate-50 text-[#1E293B] border-2 border-[#8DE5A6] shadow-xs cursor-pointer transition-transform group-hover:scale-110"
+                    className="absolute -bottom-1.5 -right-1.5 p-1.5 rounded-lg bg-white hover:bg-slate-50 text-[#2794EB] border-2 border-[#47D6B6] shadow-xs cursor-pointer transition-transform group-hover:scale-110"
                     title="Change patient profile picture"
                   >
-                    <Camera className="w-3.5 h-3.5 text-[#1E293B]" />
+                    <Camera className="w-3.5 h-3.5 text-[#2794EB]" />
                   </button>
                 )}
               </div>
               <div>
                 <div className="flex items-center gap-3">
-                  <h2 className="text-2xl font-black text-[#1E293B]">
+                  <h2 className="text-2xl font-black text-white">
                     {currentPatient.name}
                   </h2>
                   <span 
-                    className="px-2.5 py-1 rounded-full bg-white/95 text-[#1E293B] text-xs font-black font-mono flex items-center gap-1 border border-[#8DE5A6] shadow-2xs"
+                    className="px-2.5 py-1 rounded-full bg-white/95 text-[#2794EB] text-xs font-black font-mono flex items-center gap-1 border border-[#47D6B6] shadow-2xs"
                     title="Unique Patient ID Code"
                   >
                     <span className="text-slate-500 font-sans font-bold text-[10px] uppercase">ID:</span>
@@ -384,17 +437,17 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                         soundEffects.playGentleTap();
                         onEditProfile(currentPatient);
                       }}
-                      className="px-3 py-1 rounded-full bg-white/90 hover:bg-white text-[#1E293B] text-xs font-black flex items-center gap-1.5 border border-[#8DE5A6] transition-all cursor-pointer shadow-xs active:scale-95"
+                      className="px-3 py-1 rounded-full bg-white/90 hover:bg-white text-[#2794EB] text-xs font-black flex items-center gap-1.5 border border-[#47D6B6] transition-all cursor-pointer shadow-xs active:scale-95"
                       title="Click to change age"
                     >
-                      <Calendar className="w-3.5 h-3.5 text-[#3E82F0]" />
-                      <span>Age: {currentPatient.age || 74}</span>
-                      <span className="text-[10px] text-[#3E82F0] font-bold underline">Change</span>
+                      <Calendar className="w-3.5 h-3.5 text-[#2794EB]" />
+                      <span>{t.age}: {currentPatient.age || 74}</span>
+                      <span className="text-[10px] text-[#2794EB] font-bold underline">{t.change}</span>
                     </button>
                   ) : (
-                    <span className="px-3 py-1 rounded-full bg-white/90 text-[#1E293B] text-xs font-black flex items-center gap-1 border border-[#8DE5A6]">
-                      <Calendar className="w-3 h-3 text-[#3E82F0]" />
-                      Age: {currentPatient.age || 74}
+                    <span className="px-3 py-1 rounded-full bg-white/90 text-[#2794EB] text-xs font-black flex items-center gap-1 border border-[#47D6B6]">
+                      <Calendar className="w-3 h-3 text-[#2794EB]" />
+                      {t.age}: {currentPatient.age || 74}
                     </span>
                   )}
                   {onEditProfile && (
@@ -405,31 +458,31 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                         soundEffects.playGentleTap();
                         onEditProfile(currentPatient);
                       }}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/90 hover:bg-white text-[#1E293B] border border-[#8DE5A6] text-xs font-black transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/90 hover:bg-white text-[#2794EB] border border-[#47D6B6] text-xs font-black transition-colors cursor-pointer"
                       title="Edit Patient Profile and Photo"
                     >
-                      <Edit3 className="w-3 h-3 text-[#3E82F0]" />
-                      <span>Edit Details</span>
+                      <Edit3 className="w-3 h-3 text-[#2794EB]" />
+                      <span>{t.edit_details}</span>
                     </button>
                   )}
                 </div>
-                <p className="text-[#1E293B] text-sm font-bold mt-1">
-                  📍 {currentPatient.location || 'Guwahati, Assam'} · Primary Language: {currentPatient.language_pref.toUpperCase()}
+                <p className="text-white/90 text-sm font-bold mt-1">
+                  📍 {currentPatient.location || 'Guwahati, Assam'} · {t.primary_language}: {currentPatient.language_pref.toUpperCase()}
                 </p>
                 {currentPatient.diagnosis_note && (
-                  <p className="text-xs text-[#1E293B]/90 italic mt-1 font-semibold">
-                    Clinical Note: {currentPatient.diagnosis_note}
+                  <p className="text-xs text-white/80 italic mt-1 font-semibold">
+                    {t.clinical_note}: {currentPatient.diagnosis_note}
                   </p>
                 )}
               </div>
             </div>
 
             {/* Linked Patient Switcher */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 bg-white/90 p-2 rounded-2xl border border-[#8DE5A6]">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 bg-white/90 p-2 rounded-2xl border border-[#47D6B6]">
               <div className="flex items-center gap-1 px-2">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                 <span className="text-xs font-black text-[#1E293B] uppercase">
-                  Assigned ({allPatients.length}):
+                  {t.assigned_patients} ({allPatients.length}):
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5 items-center">
@@ -440,8 +493,8 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                     onClick={() => onSwitchPatient(p.id)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                       p.id === currentPatient.id
-                        ? 'bg-[#1E293B] text-white shadow-sm'
-                        : 'bg-white hover:bg-slate-100 text-[#1E293B] border border-[#8DE5A6]'
+                        ? 'bg-[#2794EB] text-white shadow-sm'
+                        : 'bg-white hover:bg-slate-100 text-[#1E293B] border border-[#47D6B6]'
                     }`}
                   >
                     {p.name.split(' ')[0]}
@@ -458,7 +511,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                     title="Connect another assigned patient"
                   >
                     <Plus className="w-3 h-3" />
-                    <span>Link</span>
+                    <span>{t.link_btn}</span>
                   </button>
                 )}
               </div>
@@ -468,12 +521,12 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
       {/* KPI Overview Cards with Theme Palette — Connected Directly to Patient Gaming Scores */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Cognitive Gaming Score */}
-        <div className="bg-[#FAFAFA] rounded-2xl p-5 border-2 border-[#8DE5A6] shadow-sm space-y-2">
+        <div className="bg-[#FAFAFA] rounded-2xl p-5 border-2 border-[#47D6B6] shadow-sm space-y-2">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-black uppercase tracking-wider text-slate-600 flex items-center gap-1">
-              <span>Patient Gaming Score</span>
+              <span>{t.patient_gaming_score}</span>
             </span>
-            <Gamepad2 className="w-5 h-5 text-[#3E82F0]" />
+            <Gamepad2 className="w-5 h-5 text-[#2794EB]" />
           </div>
           {hasGamingData && analysis ? (
             <div>
@@ -483,29 +536,29 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
               </div>
               <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-bold mt-1">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>Derived from {analysis.total_games_played} played games</span>
+                <span>{t.derived_from} {analysis.total_games_played} {t.played_games}</span>
               </div>
             </div>
           ) : (
             <div>
               <div className="text-2xl font-black text-amber-700 flex items-baseline gap-1">
-                <span>Pending</span>
+                <span>{t.pending}</span>
                 <span className="text-xs font-bold text-slate-400">(0 / 100)</span>
               </div>
               <p className="text-xs text-slate-500 font-semibold mt-1">
-                Awaiting first game session
+                {t.awaiting_first_game}
               </p>
             </div>
           )}
         </div>
 
         {/* Accuracy vs Baseline */}
-        <div className="bg-[#FAFAFA] rounded-2xl p-5 border-2 border-[#8DE5A6] shadow-sm space-y-2">
+        <div className="bg-[#FAFAFA] rounded-2xl p-5 border-2 border-[#47D6B6] shadow-sm space-y-2">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-black uppercase tracking-wider text-slate-600">
-              Avg. Recall Accuracy
+              {t.avg_accuracy}
             </span>
-            <Activity className="w-5 h-5 text-[#3E82F0]" />
+            <Activity className="w-5 h-5 text-[#2794EB]" />
           </div>
           {hasGamingData && analysis ? (
             <div>
@@ -513,7 +566,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                 {analysis.average_accuracy_pct}%
               </div>
               <p className="text-xs text-slate-600 font-bold mt-1">
-                Baseline: {trendData?.baseline_accuracy || analysis.average_accuracy_pct}% (
+                {t.baseline}: {trendData?.baseline_accuracy || analysis.average_accuracy_pct}% (
                 {trendData && trendData.deviation_from_baseline_pct >= 0 ? '+' : ''}
                 {trendData?.deviation_from_baseline_pct || 0}%)
               </p>
@@ -524,19 +577,19 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                 -- %
               </div>
               <p className="text-xs text-slate-500 font-semibold mt-1">
-                Awaiting patient gameplay
+                {t.awaiting_gameplay}
               </p>
             </div>
           )}
         </div>
 
         {/* Avg Response Speed */}
-        <div className="bg-[#FAFAFA] rounded-2xl p-5 border-2 border-[#8DE5A6] shadow-sm space-y-2">
+        <div className="bg-[#FAFAFA] rounded-2xl p-5 border-2 border-[#47D6B6] shadow-sm space-y-2">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-black uppercase tracking-wider text-slate-600">
-              Avg Response Time
+              {t.avg_response_time}
             </span>
-            <Clock className="w-5 h-5 text-[#3E82F0]" />
+            <Clock className="w-5 h-5 text-[#2794EB]" />
           </div>
           {hasGamingData && analysis ? (
             <div>
@@ -545,10 +598,10 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
               </div>
               <p className="text-xs text-slate-600 font-bold mt-1">
                 {analysis.average_response_time_sec <= 4.2
-                  ? 'Swift & alert processing'
+                  ? t.swift_processing
                   : analysis.average_response_time_sec <= 6.5
-                  ? 'Thoughtful deliberation'
-                  : 'Relaxed pacing pace'}
+                  ? t.deliberation_processing
+                  : t.relaxed_pacing}
               </p>
             </div>
           ) : (
@@ -557,17 +610,17 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                 -- s
               </div>
               <p className="text-xs text-slate-500 font-semibold mt-1">
-                Reaction speed untracked
+                {t.speed_untracked}
               </p>
             </div>
           )}
         </div>
 
         {/* Active Alerts */}
-        <div className="bg-[#FAFAFA] rounded-2xl p-5 border-2 border-[#8DE5A6] shadow-sm space-y-2">
+        <div className="bg-[#FAFAFA] rounded-2xl p-5 border-2 border-[#47D6B6] shadow-sm space-y-2">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-black uppercase tracking-wider text-slate-600">
-              Active Alerts
+              {t.active_alerts}
             </span>
             <AlertTriangle className="w-5 h-5 text-rose-500" />
           </div>
@@ -575,28 +628,28 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
             {activeAlerts.length}
           </div>
           <p className="text-xs text-slate-600 font-bold mt-1">
-            {activeAlerts.length === 0 ? 'All systems peaceful' : 'Requires review'}
+            {activeAlerts.length === 0 ? t.all_peaceful : t.requires_review}
           </p>
         </div>
       </div>
 
       {/* Baseline Observation & Gaming Performance Highlight Card */}
       {hasGamingData && analysis ? (
-        <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border-2 border-[#8DE5A6] rounded-2xl p-5 shadow-sm space-y-3">
+        <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border-2 border-[#47D6B6] rounded-2xl p-5 shadow-sm space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/80 pb-3">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-emerald-100 rounded-xl text-emerald-800 shrink-0">
-                <Brain className="w-6 h-6 text-[#3E82F0]" />
+                <Brain className="w-6 h-6 text-[#2794EB]" />
               </div>
               <div>
                 <h4 className="text-base font-black text-emerald-950 flex items-center gap-2">
-                  <span>Empirical Cognitive Gaming Analysis</span>
+                  <span>{t.empirical_analysis}</span>
                   <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900 font-bold">
-                    {analysis.total_games_played} Sessions Recorded
+                    {analysis.total_games_played} {t.sessions_recorded}
                   </span>
                 </h4>
                 <p className="text-xs text-slate-600 font-medium">
-                  Direct evaluation of visual recall, speed agility, and focus consistency
+                  {t.eval_subtext}
                 </p>
               </div>
             </div>
@@ -608,10 +661,10 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                   ? 'bg-amber-100 text-amber-900 border border-amber-300'
                   : 'bg-blue-100 text-blue-900 border border-blue-300'
               }`}>
-                Trajectory: {analysis.trend_direction.replace('_', ' ')}
+                {t.trajectory}: {analysis.trend_direction === 'improving' ? t.trajectory_improving : analysis.trend_direction === 'attention_needed' ? t.trajectory_attention_needed : t.trajectory_stable}
               </span>
-              <span className="text-xs font-mono font-black bg-white px-2.5 py-1 rounded-lg border border-[#8DE5A6] text-[#1E293B]">
-                Score: {analysis.gaming_score}/100
+              <span className="text-xs font-mono font-black bg-white px-2.5 py-1 rounded-lg border border-[#47D6B6] text-[#1E293B]">
+                {t.score}: {analysis.gaming_score}/100
               </span>
             </div>
           </div>
@@ -619,8 +672,8 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div className="space-y-1">
               <span className="text-xs font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-[#3E82F0]" />
-                <span>Clinical & Cognitive Insight</span>
+                <Sparkles className="w-3.5 h-3.5 text-[#2794EB]" />
+                <span>{t.clinical_insight}</span>
               </span>
               <p className="text-slate-800 font-medium leading-relaxed">
                 {analysis.clinical_insight}
@@ -628,8 +681,8 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
             </div>
             <div className="space-y-1">
               <span className="text-xs font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-[#3E82F0]" />
-                <span>Reaction Latency & Motor Speed</span>
+                <Clock className="w-3.5 h-3.5 text-[#2794EB]" />
+                <span>{t.reaction_speed}</span>
               </span>
               <p className="text-slate-800 font-medium leading-relaxed">
                 {analysis.speed_analysis}
@@ -638,8 +691,8 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
           </div>
 
           <p className="text-[11px] text-slate-500 italic pt-1 border-t border-emerald-200/50 flex items-center justify-between">
-            <span>Transparent formula: Accuracy (50%) + Speed (25%) + Error Control (15%) + Completion (10%). Never arbitrary.</span>
-            <span>Ethical engagement tool · Not a medical diagnosis</span>
+            <span>{t.formula_transparent}</span>
+            <span>{t.ethical_tool_tag}</span>
           </p>
         </div>
       ) : (
@@ -649,13 +702,13 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
           </div>
           <div className="space-y-1">
             <h4 className="text-base font-black text-amber-950">
-              Cognitive Gaming Baseline Awaiting First Session
+              {t.awaiting_baseline_title}
             </h4>
             <p className="text-slate-700 text-sm leading-relaxed font-medium">
-              Smaran Sathi generates 100% data-driven cognitive scores derived from actual gameplay rather than random numbers. Once {currentPatient ? currentPatient.name : 'the patient'} completes their first activity, cognitive recall accuracy, reaction agility, and domain-by-domain analytics will populate automatically.
+              {t.awaiting_baseline_desc.replace('{name}', currentPatient ? currentPatient.name : 'the patient')}
             </p>
             <p className="text-xs text-slate-500 italic pt-1">
-              No simulated data is shown. Every metric in this dashboard reflects genuine user activity.
+              {t.no_simulated_data}
             </p>
           </div>
         </div>
@@ -667,151 +720,260 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
           <button
             id="tab-trends"
             onClick={() => setActiveTab('trends')}
-            style={activeTab === 'trends' ? { background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' } : undefined}
+            style={activeTab === 'trends' ? { background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' } : undefined}
             className={`px-4 py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'trends'
-                ? 'text-[#0F172A] border border-[#6BC1B8] shadow-sm'
-                : 'bg-[#FAFAFA] hover:bg-white text-[#1E293B] border border-[#8DE5A6]'
+                ? 'text-white border border-[#47D6B6] shadow-sm'
+                : 'bg-[#FAFAFA] hover:bg-white text-[#1E293B] border border-[#47D6B6]'
             }`}
           >
-            <Activity className="w-4 h-4 text-[#3E82F0]" />
-            <span>Cognitive Trends</span>
+            <Activity className={`w-4 h-4 ${activeTab === 'trends' ? 'text-white' : 'text-[#2794EB]'}`} />
+            <span>{t.tab_trends}</span>
           </button>
 
           <button
             id="tab-care"
             onClick={() => setActiveTab('care')}
-            style={activeTab === 'care' ? { background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' } : undefined}
+            style={activeTab === 'care' ? { background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' } : undefined}
             className={`px-4 py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'care'
-                ? 'text-[#0F172A] border border-[#6BC1B8] shadow-sm'
-                : 'bg-[#FAFAFA] hover:bg-white text-[#1E293B] border border-[#8DE5A6]'
+                ? 'text-white border border-[#47D6B6] shadow-sm'
+                : 'bg-[#FAFAFA] hover:bg-white text-[#1E293B] border border-[#47D6B6]'
             }`}
           >
-            <Pill className="w-4 h-4 text-[#3E82F0]" />
-            <span>Meds & Emergency Care</span>
+            <Pill className={`w-4 h-4 ${activeTab === 'care' ? 'text-white' : 'text-[#2794EB]'}`} />
+            <span>{t.tab_care}</span>
           </button>
 
           <button
             id="tab-consultation"
             onClick={() => setActiveTab('consultation')}
-            style={activeTab === 'consultation' ? { background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' } : undefined}
+            style={activeTab === 'consultation' ? { background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' } : undefined}
             className={`px-4 py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'consultation'
-                ? 'text-[#0F172A] border border-[#6BC1B8] shadow-sm'
-                : 'bg-[#FAFAFA] hover:bg-white text-[#1E293B] border border-[#8DE5A6]'
+                ? 'text-white border border-[#47D6B6] shadow-sm'
+                : 'bg-[#FAFAFA] hover:bg-white text-[#1E293B] border border-[#47D6B6]'
             }`}
           >
-            <Stethoscope className="w-4 h-4 text-[#3E82F0]" />
-            <span>Doctor Consultations</span>
+            <Stethoscope className={`w-4 h-4 ${activeTab === 'consultation' ? 'text-white' : 'text-[#2794EB]'}`} />
+            <span>{t.tab_consultation}</span>
           </button>
 
           <button
             id="tab-reminders"
             onClick={() => setActiveTab('reminders')}
-            style={activeTab === 'reminders' ? { background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' } : undefined}
+            style={activeTab === 'reminders' ? { background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' } : undefined}
             className={`px-4 py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'reminders'
-                ? 'text-[#0F172A] border border-[#6BC1B8] shadow-sm'
-                : 'bg-[#FAFAFA] hover:bg-white text-[#1E293B] border border-[#8DE5A6]'
+                ? 'text-white border border-[#47D6B6] shadow-sm'
+                : 'bg-[#FAFAFA] hover:bg-white text-[#1E293B] border border-[#47D6B6]'
             }`}
           >
-            <Clock className="w-4 h-4 text-[#3E82F0]" />
-            <span>Schedule Reminders ({reminders.length})</span>
-            <span className="text-[10px] bg-white/90 text-[#1E293B] font-extrabold px-1.5 py-0.5 rounded-md ml-1 border border-[#8DE5A6]">
-              Caregiver Access
+            <Clock className={`w-4 h-4 ${activeTab === 'reminders' ? 'text-white' : 'text-[#2794EB]'}`} />
+            <span>{t.tab_reminders} ({reminders.length})</span>
+            <span className="text-[10px] bg-white/90 text-[#1E293B] font-extrabold px-1.5 py-0.5 rounded-md ml-1 border border-[#47D6B6]">
+              {t.cg_access_badge}
             </span>
           </button>
 
           <button
             id="tab-alerts"
             onClick={() => setActiveTab('alerts')}
-            style={activeTab === 'alerts' ? { background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' } : undefined}
+            style={activeTab === 'alerts' ? { background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' } : undefined}
             className={`px-4 py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'alerts'
-                ? 'text-[#0F172A] border border-[#6BC1B8] shadow-sm'
-                : 'bg-[#FAFAFA] hover:bg-white text-[#1E293B] border border-[#8DE5A6]'
+                ? 'text-white border border-[#47D6B6] shadow-sm'
+                : 'bg-[#FAFAFA] hover:bg-white text-[#1E293B] border border-[#47D6B6]'
             }`}
           >
-            <Bell className="w-4 h-4 text-[#3E82F0]" />
-            <span>Alerts ({activeAlerts.length})</span>
+            <Bell className={`w-4 h-4 ${activeTab === 'alerts' ? 'text-white' : 'text-[#2794EB]'}`} />
+            <span>{t.tab_alerts} ({activeAlerts.length})</span>
           </button>
 
           <button
             id="tab-people"
             onClick={() => setActiveTab('people')}
-            style={activeTab === 'people' ? { background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' } : undefined}
+            style={activeTab === 'people' ? { background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' } : undefined}
             className={`px-4 py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'people'
-                ? 'text-[#0F172A] border border-[#6BC1B8] shadow-sm'
-                : 'bg-[#FAFAFA] hover:bg-white text-[#1E293B] border border-[#8DE5A6]'
+                ? 'text-white border border-[#47D6B6] shadow-sm'
+                : 'bg-[#FAFAFA] hover:bg-white text-[#1E293B] border border-[#47D6B6]'
             }`}
           >
-            <Users className="w-4 h-4 text-[#3E82F0]" />
-            <span>Family Album ({familiarPeople.length})</span>
+            <Users className={`w-4 h-4 ${activeTab === 'people' ? 'text-white' : 'text-[#2794EB]'}`} />
+            <span>{t.tab_people} ({familiarPeople.length})</span>
           </button>
         </div>
 
-        {/* Quick Action Buttons for Journal */}
+        {/* Quick Action Button for Journal */}
         <div className="flex items-center gap-2">
           {onOpenJournal && (
             <button
               onClick={onOpenJournal}
-              className="px-3 py-2 rounded-xl bg-white hover:bg-slate-50 text-[#1E293B] font-black text-xs flex items-center gap-1 border border-[#8DE5A6] cursor-pointer shadow-2xs"
+              className="px-3 py-2 rounded-xl bg-white hover:bg-slate-50 text-[#1E293B] font-black text-xs flex items-center gap-1 border border-[#47D6B6] cursor-pointer shadow-2xs"
               title="Memory Reminiscence Journal"
             >
-              <BookOpen className="w-3.5 h-3.5 text-[#3E82F0]" />
-              <span>Memory Journal</span>
+              <BookOpen className="w-3.5 h-3.5 text-[#2794EB]" />
+              <span>{t.tab_journal}</span>
             </button>
           )}
         </div>
       </div>
 
       {/* TAB: Integrated Care Services */}
-      {activeTab === 'care' && (
+      {activeTab === 'care' && currentPatient && (
         <IntegratedCareView
           user={currentPatient}
-          caregiverName={caregiverUser.name}
+          caregiverName={caregiverUser?.name}
           onAddReminder={onAddReminder}
+          language={currentLang}
         />
       )}
 
       {/* TAB: Professional Consultation Portal */}
-      {activeTab === 'consultation' && (
+      {activeTab === 'consultation' && currentPatient && (
         <ConsultationPortalView
           user={currentPatient}
+          language={currentLang}
         />
       )}
 
       {/* TAB 1: Patient Gaming Performance & Deep Cognitive Analysis */}
       {activeTab === 'trends' && (
         <div className="space-y-6">
+          {/* AI Cognitive Prescription & Game Recommendation Panel */}
+          {recommendation && (
+            <div className="bg-gradient-to-r from-blue-50/90 via-teal-50/70 to-emerald-50/90 rounded-[32px] p-6 md:p-8 border-3 border-[#47D6B6] shadow-sm space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#47D6B6]/50 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#2794EB] to-[#47D6B6] text-white flex items-center justify-center shadow-xs shrink-0">
+                    <Sparkles className="w-6 h-6 animate-pulse" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-black text-slate-900">
+                        🤖 AI Neuropsychology Game Prescription
+                      </h3>
+                      <span className="text-[10px] font-black uppercase tracking-wider bg-[#2794EB] text-white px-2.5 py-0.5 rounded-full shadow-2xs">
+                        Gemini 3.8 Flash
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 font-bold">
+                      Clinical AI analysis based on {currentPatient.name.split(' ')[0]}'s empirical accuracy, speed, and cognitive domain fatigue
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {recommendation.confidence_score && (
+                    <span className="text-xs font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-3 py-1.5 rounded-xl">
+                      ⚡ {recommendation.confidence_score}% Confidence
+                    </span>
+                  )}
+                  {onRefreshRecommendation && (
+                    <button
+                      type="button"
+                      id="caregiver-reanalyze-ai-btn"
+                      onClick={handleRefreshAI}
+                      disabled={isRefreshingAI}
+                      className="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-[#2794EB] border border-[#47D6B6] text-xs font-black flex items-center gap-2 transition-all cursor-pointer shadow-2xs active:scale-95 disabled:opacity-60"
+                      title="Run real-time Gemini AI re-analysis on patient logs"
+                    >
+                      <Sparkles className={`w-4 h-4 ${isRefreshingAI ? 'animate-spin' : ''}`} />
+                      <span>{isRefreshingAI ? 'Re-Analyzing...' : 'Re-Run Gemini AI'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Recommended Activity Card & Clinical Breakdown */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                {/* Column 1: Prescribed Game & Difficulty */}
+                <div className="bg-white/95 rounded-2xl p-5 border-2 border-[#47D6B6] space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase text-slate-500 tracking-wider">
+                      Prescribed Activity
+                    </span>
+                    <span className="text-xs font-black uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300">
+                      Level: {recommendation.recommended_difficulty}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <h4 className="text-lg font-black text-slate-900">
+                      {recommendation.recommended_game_title || recommendation.next_game_type.replace('_', ' ').toUpperCase()}
+                    </h4>
+                    {recommendation.cognitive_focus_domain && (
+                      <p className="text-xs text-[#2794EB] font-bold">
+                        🎯 Target: {recommendation.cognitive_focus_domain}
+                      </p>
+                    )}
+                  </div>
+
+                  {recommendation.patient_encouragement_message && (
+                    <div className="p-3 bg-blue-50/80 rounded-xl border border-blue-200/70 text-xs text-blue-900 font-medium">
+                      🗣️ <strong>Patient Script:</strong> "{recommendation.patient_encouragement_message}"
+                    </div>
+                  )}
+                </div>
+
+                {/* Column 2: Clinical Rationale */}
+                <div className="bg-white/95 rounded-2xl p-5 border-2 border-[#47D6B6] space-y-2 shadow-2xs">
+                  <span className="text-xs font-black uppercase text-slate-500 tracking-wider block">
+                    Clinical AI Rationale
+                  </span>
+                  <p className="text-xs sm:text-sm text-slate-800 font-medium leading-relaxed">
+                    {recommendation.clinical_reasoning || recommendation.rationale}
+                  </p>
+                  {recommendation.expected_therapeutic_benefit && (
+                    <div className="pt-2 border-t border-slate-100 text-xs text-emerald-800 font-bold">
+                      🌱 <strong>Therapeutic Goal:</strong> {recommendation.expected_therapeutic_benefit}
+                    </div>
+                  )}
+                </div>
+
+                {/* Column 3: Caregiver Actionable Tip */}
+                <div className="bg-white/95 rounded-2xl p-5 border-2 border-[#47D6B6] space-y-2 shadow-2xs">
+                  <span className="text-xs font-black uppercase text-slate-500 tracking-wider block">
+                    Caregiver Co-Play Strategy
+                  </span>
+                  <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed">
+                    {recommendation.caregiver_actionable_tip || 'Encourage the patient with gentle praise, allowing sufficient response time without rushing.'}
+                  </p>
+                  <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-500 italic">
+                    {recommendation.ethical_disclaimer || 'Cognitive engagement tool — not a medical substitute.'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {hasGamingData && analysis ? (
             <>
               {/* 1. Transparent Gaming Score Breakdown Card */}
-              <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-6">
+              <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#47D6B6] shadow-sm space-y-6">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b-2 border-slate-200 pb-5">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-1 rounded-md bg-[#8DE5A6] text-[#0F172A] font-black text-xs uppercase tracking-wider">
-                        Patient Game Analytics
+                      <span className="px-2.5 py-1 rounded-md bg-[#47D6B6] text-[#0F172A] font-black text-xs uppercase tracking-wider">
+                        {t.patient_game_analytics}
                       </span>
                       <span className="text-xs font-bold text-slate-500">
-                        {currentPatient.name} • {analysis.total_games_played} sessions evaluated
+                        {currentPatient.name} • {analysis.total_games_played} {t.sessions_evaluated}
                       </span>
                     </div>
                     <h3 className="text-2xl font-black text-[#1E293B]">
-                      Cognitive Gaming Performance Index
+                      {t.cognitive_perf_index}
                     </h3>
                     <p className="text-xs text-slate-600 font-medium max-w-2xl">
-                      Transparent scoring strictly derived from gameplay accuracy, reaction speed agility, mistake frequency, and completion consistency. No synthetic or randomized values.
+                      {t.eval_subtext}
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-4 bg-white p-4 rounded-2xl border-2 border-[#8DE5A6] shrink-0 shadow-2xs">
+                  <div className="flex items-center gap-4 bg-white p-4 rounded-2xl border-2 border-[#47D6B6] shrink-0 shadow-2xs">
                     <div className="text-center">
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
-                        Total Gaming Score
+                        {t.total_gaming_score}
                       </span>
                       <div className="text-4xl font-black text-[#1E293B] flex items-baseline justify-center gap-1">
                         <span>{analysis.gaming_score}</span>
@@ -827,10 +989,10 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                           ? 'bg-amber-100 text-amber-900 border border-amber-300'
                           : 'bg-blue-100 text-blue-900 border border-blue-300'
                       }`}>
-                        {analysis.trend_direction.replace('_', ' ')}
+                        {analysis.trend_direction === 'improving' ? t.trajectory_improving : analysis.trend_direction === 'attention_needed' ? t.trajectory_attention_needed : t.trajectory_stable}
                       </span>
                       <p className="text-[11px] font-bold text-slate-600">
-                        {analysis.total_stars} ⭐ earned
+                        {analysis.total_stars} ⭐ {t.earned}
                       </p>
                     </div>
                   </div>
@@ -839,12 +1001,12 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                 {/* Score Formula Components (4 Pillars) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {/* Accuracy Component */}
-                  <div className="bg-white rounded-2xl p-4 border border-[#8DE5A6] space-y-2 shadow-2xs">
+                  <div className="bg-white rounded-2xl p-4 border border-[#47D6B6] space-y-2 shadow-2xs">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
-                        1. Recall Accuracy
+                        1. {t.recall_accuracy}
                       </span>
-                      <Target className="w-4 h-4 text-[#3E82F0]" />
+                      <Target className="w-4 h-4 text-[#2794EB]" />
                     </div>
                     <div className="flex items-baseline justify-between">
                       <span className="text-2xl font-black text-[#1E293B]">
@@ -857,22 +1019,22 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                       <div 
-                        className="bg-[#3E82F0] h-full rounded-full transition-all"
+                        className="bg-[#2794EB] h-full rounded-full transition-all"
                         style={{ width: `${(analysis.score_breakdown.accuracy_pts / 50) * 100}%` }}
                       />
                     </div>
                     <p className="text-[11px] text-slate-500 font-medium">
-                      50% weight • Evaluates visual & semantic accuracy
+                      50% weight • {t.eval_subtext}
                     </p>
                   </div>
 
                   {/* Speed Agility Component */}
-                  <div className="bg-white rounded-2xl p-4 border border-[#8DE5A6] space-y-2 shadow-2xs">
+                  <div className="bg-white rounded-2xl p-4 border border-[#47D6B6] space-y-2 shadow-2xs">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
-                        2. Reaction Speed
+                        2. {t.reaction_speed_title}
                       </span>
-                      <Clock className="w-4 h-4 text-[#6BC1B8]" />
+                      <Clock className="w-4 h-4 text-[#47D6B6]" />
                     </div>
                     <div className="flex items-baseline justify-between">
                       <span className="text-2xl font-black text-[#1E293B]">
@@ -885,20 +1047,20 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                       <div 
-                        className="bg-[#6BC1B8] h-full rounded-full transition-all"
+                        className="bg-[#47D6B6] h-full rounded-full transition-all"
                         style={{ width: `${(analysis.score_breakdown.speed_pts / 25) * 100}%` }}
                       />
                     </div>
                     <p className="text-[11px] text-slate-500 font-medium">
-                      25% weight • Benchmarked for gentle elderly pace
+                      25% weight • {t.reaction_speed}
                     </p>
                   </div>
 
                   {/* Focus & Error Control */}
-                  <div className="bg-white rounded-2xl p-4 border border-[#8DE5A6] space-y-2 shadow-2xs">
+                  <div className="bg-white rounded-2xl p-4 border border-[#47D6B6] space-y-2 shadow-2xs">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
-                        3. Focus & Precision
+                        3. {t.focus_precision}
                       </span>
                       <Zap className="w-4 h-4 text-amber-500" />
                     </div>
@@ -918,15 +1080,15 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                       />
                     </div>
                     <p className="text-[11px] text-slate-500 font-medium">
-                      15% weight • Rewards deliberate, calm moves
+                      15% weight • {t.formula_transparent}
                     </p>
                   </div>
 
                   {/* Completion & Consistency */}
-                  <div className="bg-white rounded-2xl p-4 border border-[#8DE5A6] space-y-2 shadow-2xs">
+                  <div className="bg-white rounded-2xl p-4 border border-[#47D6B6] space-y-2 shadow-2xs">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
-                        4. Completion
+                        4. {t.completion_title}
                       </span>
                       <Award className="w-4 h-4 text-emerald-600" />
                     </div>
@@ -946,7 +1108,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                       />
                     </div>
                     <p className="text-[11px] text-slate-500 font-medium">
-                      10% weight • Rewards daily engagement loop
+                      10% weight • {t.formula_transparent}
                     </p>
                   </div>
                 </div>
@@ -957,7 +1119,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                     <Info className="w-5 h-5 text-emerald-800 shrink-0 mt-0.5" />
                     <div className="space-y-0.5">
                       <h5 className="text-sm font-black text-emerald-950">
-                        Clinical Analysis Note
+                        {t.clinical_analysis_note}
                       </h5>
                       <p className="text-xs text-slate-700 font-medium leading-relaxed">
                         {analysis.clinical_insight} {analysis.speed_analysis}
@@ -966,9 +1128,9 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                   </div>
                   <div className="shrink-0 text-right">
                     <span className="text-[10px] font-black uppercase text-slate-500 block">
-                      Recommended Next Game
+                      {t.recommended_next_game}
                     </span>
-                    <span className="text-xs font-black text-[#0F172A] bg-white px-3 py-1 rounded-full border border-[#8DE5A6] inline-block shadow-2xs">
+                    <span className="text-xs font-black text-[#0F172A] bg-white px-3 py-1 rounded-full border border-[#47D6B6] inline-block shadow-2xs">
                       {analysis.recommended_game.title}
                     </span>
                   </div>
@@ -976,19 +1138,19 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
               </div>
 
               {/* 2. Domain-by-Domain Cognitive Health Grid */}
-              <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-5">
+              <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#47D6B6] shadow-sm space-y-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <h3 className="text-xl font-black text-[#1E293B] flex items-center gap-2">
-                      <Brain className="w-5 h-5 text-[#3E82F0]" />
-                      <span>Cognitive Domain Breakdown</span>
+                      <Brain className="w-5 h-5 text-[#2794EB]" />
+                      <span>{t.domain_breakdown_title}</span>
                     </h3>
                     <p className="text-slate-500 text-xs font-medium">
-                      Empirical assessment across 5 core cognitive neural pathways
+                      {t.domain_breakdown_subtitle}
                     </p>
                   </div>
                   <span className="text-xs font-bold text-slate-600 bg-white px-3 py-1 rounded-full border border-slate-200">
-                    Live Domain Tracking
+                    {t.live_domain_tracking}
                   </span>
                 </div>
 
@@ -996,7 +1158,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                   {analysis.domain_breakdown.map((domain) => (
                     <div 
                       key={domain.game_type}
-                      className="bg-white rounded-2xl p-5 border-2 border-slate-200 hover:border-[#8DE5A6] transition-all space-y-3 shadow-2xs"
+                      className="bg-white rounded-2xl p-5 border-2 border-slate-200 hover:border-[#47D6B6] transition-all space-y-3 shadow-2xs"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div>
@@ -1028,7 +1190,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                           </div>
                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                             <div 
-                              className="bg-[#3E82F0] h-full rounded-full"
+                              className="bg-[#2794EB] h-full rounded-full"
                               style={{ width: `${domain.accuracy}%` }}
                             />
                           </div>
@@ -1064,19 +1226,19 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
               {/* 3. Interactive Progression Charts */}
               <div className="space-y-6">
                 {/* Accuracy Trend vs Baseline */}
-                <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-4">
+                <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#47D6B6] shadow-sm space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <h3 className="text-xl font-black text-[#1E293B]">
-                        Game Accuracy Trend (%)
+                        {t.game_accuracy_trend}
                       </h3>
                       <p className="text-slate-500 text-xs font-medium">
                         Session-by-session accuracy compared against {currentPatient.name.split(' ')[0]}'s empirical baseline ({analysis.average_accuracy_pct}%)
                       </p>
                     </div>
                     <div className="flex items-center gap-4 text-xs font-bold">
-                      <span className="flex items-center gap-1.5 text-[#3E82F0]">
-                        <span className="w-3 h-3 rounded-full bg-[#3E82F0]" /> Session Accuracy
+                      <span className="flex items-center gap-1.5 text-[#2794EB]">
+                        <span className="w-3 h-3 rounded-full bg-[#2794EB]" /> Session Accuracy
                       </span>
                       <span className="flex items-center gap-1.5 text-slate-400">
                         <span className="w-3 h-0.5 bg-slate-400" /> Baseline ({analysis.average_accuracy_pct}%)
@@ -1094,14 +1256,14 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                           contentStyle={{
                             backgroundColor: '#ffffff',
                             borderRadius: '16px',
-                            border: '2px solid #8DE5A6',
+                            border: '2px solid #47D6B6',
                             boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
                           }}
                         />
                         <Line
                           type="monotone"
                           dataKey="accuracy"
-                          stroke="#3E82F0"
+                          stroke="#2794EB"
                           strokeWidth={3}
                           dot={{ r: 5, fill: '#1E293B' }}
                           activeDot={{ r: 8 }}
@@ -1122,10 +1284,10 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                 {/* Response Time & Activity Breakdown */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Response Time Trend */}
-                  <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-4">
+                  <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#47D6B6] shadow-sm space-y-4">
                     <div>
                       <h3 className="text-xl font-black text-[#1E293B]">
-                        Average Response Time (seconds)
+                        {t.avg_response_time_sec}
                       </h3>
                       <p className="text-slate-500 text-xs font-medium">
                         Patient motor planning & reaction latency across gameplay sessions
@@ -1142,15 +1304,15 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                             contentStyle={{
                               backgroundColor: '#ffffff',
                               borderRadius: '16px',
-                              border: '2px solid #8DE5A6',
+                              border: '2px solid #47D6B6',
                             }}
                           />
                           <Line
                             type="monotone"
                             dataKey="response_time"
-                            stroke="#6BC1B8"
+                            stroke="#47D6B6"
                             strokeWidth={3}
-                            dot={{ r: 5, fill: '#3E82F0' }}
+                            dot={{ r: 5, fill: '#2794EB' }}
                           />
                         </LineChart>
                       </ResponsiveContainer>
@@ -1158,10 +1320,10 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                   </div>
 
                   {/* Games Played Distribution */}
-                  <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-4">
+                  <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#47D6B6] shadow-sm space-y-4">
                     <div>
                       <h3 className="text-xl font-black text-[#1E293B]">
-                        Cognitive Domain Participation
+                        {t.cognitive_participation}
                       </h3>
                       <p className="text-slate-500 text-xs font-medium">
                         Distribution of cultural game activities completed by {currentPatient.name.split(' ')[0]}
@@ -1178,10 +1340,10 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                             contentStyle={{
                               backgroundColor: '#ffffff',
                               borderRadius: '16px',
-                              border: '2px solid #8DE5A6',
+                              border: '2px solid #47D6B6',
                             }}
                           />
-                          <Bar dataKey="count" fill="#6BC1B8" radius={[8, 8, 0, 0]} />
+                          <Bar dataKey="count" fill="#47D6B6" radius={[8, 8, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -1191,11 +1353,11 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
 
               {/* 4. Session-by-Session Scorecard Log */}
               {analysis.recent_sessions_summary && analysis.recent_sessions_summary.length > 0 && (
-                <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-4">
+                <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#47D6B6] shadow-sm space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <h3 className="text-xl font-black text-[#1E293B]">
-                        Recent Game Scorecards & Analysis Log
+                        {t.recent_scorecards}
                       </h3>
                       <p className="text-slate-500 text-xs font-medium">
                         Direct empirical logs of each completed game session
@@ -1211,7 +1373,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                       <div key={sess.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
-                            <Gamepad2 className="w-5 h-5 text-[#3E82F0]" />
+                            <Gamepad2 className="w-5 h-5 text-[#2794EB]" />
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
@@ -1262,10 +1424,10 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
               </div>
               <div className="space-y-2 max-w-md mx-auto">
                 <h3 className="text-2xl font-black text-[#1E293B]">
-                  No Game Sessions Recorded Yet
+                  {t.no_sessions_title}
                 </h3>
                 <p className="text-slate-600 text-sm font-medium leading-relaxed">
-                  Smaran Sathi connects cognitive scoring directly to actual patient gameplay. There are no randomized or arbitrary placeholder numbers.
+                  {t.no_sessions_desc}
                 </p>
                 <p className="text-xs text-slate-500 italic">
                   Once {currentPatient.name.split(' ')[0]} completes a game activity (e.g. Memory Match, Picture Recognition, or Sequence Recall), live accuracy trajectories, domain breakdowns, and clinical cognitive observations will generate automatically.
@@ -1288,25 +1450,26 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
           onToggleReminder={onToggleReminder}
           onTriggerAlarm={onTriggerAlarm}
           caregiverName={caregiverUser.name}
+          language={currentLang}
         />
       )}
 
       {/* TAB 3: Alerts & Safety Logs */}
       {activeTab === 'alerts' && (
-        <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-6">
+        <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#47D6B6] shadow-sm space-y-6">
           <div>
             <h3 className="text-xl font-black text-[#1E293B]">
-              Safety & Emergency Alert Log
+              {t.alerts_title}
             </h3>
             <p className="text-slate-500 text-xs font-medium">
-              Real-time records of SOS requests, missed medications, and baseline deviations
+              {t.alerts_subtitle}
             </p>
           </div>
 
           <div className="space-y-3">
             {alerts.length === 0 ? (
               <p className="text-slate-500 text-sm py-6 text-center font-medium">
-                No alerts recorded. Everything is peaceful.
+                {t.no_alerts}
               </p>
             ) : (
               alerts.map((al) => (
@@ -1317,7 +1480,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                       ? 'bg-white border-slate-200 text-slate-400'
                       : al.type === 'sos'
                       ? 'bg-rose-50 border-rose-300 text-rose-950'
-                      : 'bg-white border-[#8DE5A6] text-[#1E293B]'
+                      : 'bg-white border-[#47D6B6] text-[#1E293B]'
                   }`}
                 >
                   <div className="flex items-center gap-4">
@@ -1357,11 +1520,11 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                       onClick={() => onResolveAlert(al.id)}
                       className="px-4 py-2 rounded-xl bg-[#1E293B] hover:bg-slate-800 text-white text-xs font-black shadow-sm cursor-pointer"
                     >
-                      Acknowledge & Resolve
+                      {t.acknowledge_resolve}
                     </button>
                   ) : (
                     <span className="text-xs font-black text-emerald-700 flex items-center gap-1">
-                      <CheckCircle2 className="w-4 h-4" /> Resolved
+                      <CheckCircle2 className="w-4 h-4" /> {t.resolved}
                     </span>
                   )}
                 </div>
@@ -1373,24 +1536,24 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
 
       {/* TAB 4: Familiar People Management */}
       {activeTab === 'people' && (
-        <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#8DE5A6] shadow-sm space-y-6">
+        <div className="bg-[#FAFAFA] rounded-[32px] p-6 md:p-8 border-2 border-[#47D6B6] shadow-sm space-y-6">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-xl font-black text-[#1E293B]">
-                Familiar Loved Ones & Memory Cues
+                {t.loved_ones_title}
               </h3>
               <p className="text-slate-500 text-xs font-medium">
-                Photos and voice notes displayed in {currentPatient.name.split(' ')[0]}'s Family Album and Face Match games
+                {t.loved_ones_subtitle.replace('{name}', currentPatient.name.split(' ')[0])}
               </p>
             </div>
 
             <button
               onClick={() => setShowAddPersonModal(true)}
-              style={{ background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' }}
-              className="flex items-center gap-2 px-5 py-3 rounded-2xl text-[#0F172A] font-black text-sm border border-[#6BC1B8] shadow-xs hover:brightness-105 active:scale-95 transition-all cursor-pointer"
+              style={{ background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' }}
+              className="flex items-center gap-2 px-5 py-3 rounded-2xl text-white font-black text-sm border border-[#47D6B6] shadow-xs hover:brightness-105 active:scale-95 transition-all cursor-pointer"
             >
               <Plus className="w-5 h-5" />
-              <span>Add Family Member</span>
+              <span>{t.add_family_member}</span>
             </button>
           </div>
 
@@ -1398,19 +1561,19 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
             {familiarPeople.map((person) => (
               <div
                 key={person.id}
-                className="p-4 rounded-2xl border-2 border-[#8DE5A6]/40 flex items-start justify-between gap-4 hover:border-[#6BC1B8] transition-colors bg-white shadow-2xs"
+                className="p-4 rounded-2xl border-2 border-[#47D6B6]/40 flex items-start justify-between gap-4 hover:border-[#47D6B6] transition-colors bg-white shadow-2xs"
               >
                 <div className="flex items-center gap-4">
                   <img
                     src={person.photo_url}
                     alt={person.name}
-                    className="w-16 h-16 rounded-2xl object-cover border-2 border-[#8DE5A6] shrink-0"
+                    className="w-16 h-16 rounded-2xl object-cover border-2 border-[#47D6B6] shrink-0"
                   />
                   <div>
                     <h4 className="text-base font-black text-[#1E293B]">
                       {person.name}
                     </h4>
-                    <span className="text-xs font-black text-[#3E82F0]">
+                    <span className="text-xs font-black text-[#2794EB]">
                       {person.relation}
                     </span>
                     {person.notes && (
@@ -1437,15 +1600,15 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
       {/* Add Reminder Modal */}
       {showAddReminderModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-lg bg-white rounded-[32px] p-6 border-2 border-[#8DE5A6] shadow-2xl space-y-5">
+          <div className="w-full max-w-lg bg-white rounded-[32px] p-6 border-2 border-[#47D6B6] shadow-2xl space-y-5">
             <h3 className="text-2xl font-black text-[#1E293B]">
-              Create New Reminder
+              {t.create_new_reminder}
             </h3>
 
             <form onSubmit={handleCreateReminder} className="space-y-4">
               <div>
                 <label className="block text-xs font-black uppercase text-slate-700 mb-1">
-                  Reminder Title
+                  {t.reminder_title}
                 </label>
                 <input
                   type="text"
@@ -1453,19 +1616,19 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                   placeholder="e.g., Blood Pressure Medication, Hydration"
                   value={remTitle}
                   onChange={(e) => setRemTitle(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#3E82F0] text-sm font-medium"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#2794EB] text-sm font-medium"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-black uppercase text-slate-700 mb-1">
-                    Category
+                    {t.category}
                   </label>
                   <select
                     value={remType}
                     onChange={(e) => setRemType(e.target.value as ReminderType)}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#3E82F0] text-sm font-medium"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#2794EB] text-sm font-medium"
                   >
                     <option value="medication">Medication</option>
                     <option value="meal">Meal / Tea</option>
@@ -1476,7 +1639,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
 
                 <div>
                   <label className="block text-xs font-black uppercase text-slate-700 mb-1">
-                    Scheduled Time
+                    {t.scheduled_time}
                   </label>
                   <input
                     type="text"
@@ -1484,19 +1647,19 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                     placeholder="e.g. 09:30 AM"
                     value={remTime}
                     onChange={(e) => setRemTime(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#3E82F0] text-sm font-medium"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#2794EB] text-sm font-medium"
                   />
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-black uppercase text-slate-700 mb-1">
-                  Recurrence
+                  {t.recurrence}
                 </label>
                 <select
                   value={remRecurrence}
                   onChange={(e) => setRemRecurrence(e.target.value as RecurrenceType)}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#3E82F0] text-sm font-medium"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#2794EB] text-sm font-medium"
                 >
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
@@ -1513,7 +1676,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                   placeholder="e.g. Take with warm water after morning tea"
                   value={remInstructions}
                   onChange={(e) => setRemInstructions(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#3E82F0] text-sm font-medium"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#2794EB] text-sm font-medium"
                 />
               </div>
 
@@ -1523,14 +1686,14 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                   onClick={() => setShowAddReminderModal(false)}
                   className="px-4 py-3 rounded-xl border border-slate-300 font-bold text-slate-700 text-sm hover:bg-slate-50 cursor-pointer"
                 >
-                  Cancel
+                  {t.cancel}
                 </button>
                 <button
                   type="submit"
-                  style={{ background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' }}
-                  className="px-4 py-3 rounded-xl text-[#0F172A] font-black text-sm border border-[#6BC1B8] shadow-xs hover:brightness-105 active:scale-95 cursor-pointer"
+                  style={{ background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' }}
+                  className="px-4 py-3 rounded-xl text-white font-black text-sm border border-[#47D6B6] shadow-xs hover:brightness-105 active:scale-95 cursor-pointer"
                 >
-                  Save Reminder
+                  {t.save_reminder}
                 </button>
               </div>
             </form>
@@ -1541,15 +1704,15 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
       {/* Add Familiar Person Modal */}
       {showAddPersonModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-lg bg-white rounded-[32px] p-6 border-2 border-[#8DE5A6] shadow-2xl space-y-5">
+          <div className="w-full max-w-lg bg-white rounded-[32px] p-6 border-2 border-[#47D6B6] shadow-2xl space-y-5">
             <h3 className="text-2xl font-black text-[#1E293B]">
-              Add Family Member or Friend
+              {t.add_family_member}
             </h3>
 
             <form onSubmit={handleCreatePerson} className="space-y-4">
               <div>
                 <label className="block text-xs font-black uppercase text-slate-700 mb-1">
-                  Full Name
+                  {t.full_name}
                 </label>
                 <input
                   type="text"
@@ -1557,13 +1720,13 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                   placeholder="e.g. Nilav Barua"
                   value={personName}
                   onChange={(e) => setPersonName(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#3E82F0] text-sm font-medium"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#2794EB] text-sm font-medium"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-black uppercase text-slate-700 mb-1">
-                  Relationship to Patient
+                  {t.relationship}
                 </label>
                 <input
                   type="text"
@@ -1571,7 +1734,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                   placeholder="e.g. Grandson (नाति)"
                   value={personRelation}
                   onChange={(e) => setPersonRelation(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#3E82F0] text-sm font-medium"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#2794EB] text-sm font-medium"
                 />
               </div>
 
@@ -1584,7 +1747,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                   placeholder="https://images.unsplash.com/photo-..."
                   value={personPhoto}
                   onChange={(e) => setPersonPhoto(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#3E82F0] text-sm font-medium"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#2794EB] text-sm font-medium"
                 />
               </div>
 
@@ -1597,7 +1760,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                   placeholder="e.g. Studies in college, visits every Sunday with pitha"
                   value={personNotes}
                   onChange={(e) => setPersonNotes(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#3E82F0] text-sm font-medium"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#2794EB] text-sm font-medium"
                 />
               </div>
 
@@ -1610,7 +1773,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                   placeholder="+91 98640 12345"
                   value={personPhone}
                   onChange={(e) => setPersonPhone(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#3E82F0] text-sm font-medium"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#2794EB] text-sm font-medium"
                 />
               </div>
 
@@ -1620,14 +1783,14 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                   onClick={() => setShowAddPersonModal(false)}
                   className="px-4 py-3 rounded-xl border border-slate-300 font-bold text-slate-700 text-sm hover:bg-slate-50 cursor-pointer"
                 >
-                  Cancel
+                  {t.cancel}
                 </button>
                 <button
                   type="submit"
-                  style={{ background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' }}
-                  className="px-4 py-3 rounded-xl text-[#0F172A] font-black text-sm border border-[#6BC1B8] shadow-xs hover:brightness-105 active:scale-95 cursor-pointer"
+                  style={{ background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' }}
+                  className="px-4 py-3 rounded-xl text-white font-black text-sm border border-[#47D6B6] shadow-xs hover:brightness-105 active:scale-95 cursor-pointer"
                 >
-                  Save Loved One
+                  {t.save_loved_one}
                 </button>
               </div>
             </form>
@@ -1640,7 +1803,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
       {/* Direct Connect Assigned Patient Modal */}
       {isConnectModalOpen && onConnectPatient && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border-2 border-[#6BC1B8] space-y-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border-2 border-[#47D6B6] space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-emerald-600" />
@@ -1670,7 +1833,7 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                 placeholder="Patient ID / Name / Phone"
                 value={patientLinkInput}
                 onChange={(e) => setPatientLinkInput(e.target.value)}
-                className="w-full px-4 py-3 text-sm font-bold rounded-xl border border-slate-300 bg-slate-50 outline-none focus:border-[#6BC1B8] focus:bg-white"
+                className="w-full px-4 py-3 text-sm font-bold rounded-xl border border-slate-300 bg-slate-50 outline-none focus:border-[#47D6B6] focus:bg-white"
               />
 
               {linkStatusMessage && (
@@ -1694,8 +1857,8 @@ export const CaregiverDashboard: React.FC<CaregiverDashboardProps> = ({
                   type="button"
                   disabled={isLinkingPatient || !patientLinkInput.trim()}
                   onClick={handleDirectConnectPatient}
-                  style={{ background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' }}
-                  className="px-4 py-2.5 rounded-xl text-[#0F172A] font-black text-xs border border-[#6BC1B8] shadow-xs hover:brightness-105 active:scale-95 cursor-pointer disabled:opacity-50"
+                  style={{ background: 'linear-gradient(to right, #2794EB, #17B3C1, #47D6B6, #BFF8D4)' }}
+                  className="px-4 py-2.5 rounded-xl text-white font-black text-xs border border-[#47D6B6] shadow-xs hover:brightness-105 active:scale-95 cursor-pointer disabled:opacity-50"
                 >
                   {isLinkingPatient ? 'Linking...' : 'Connect Patient'}
                 </button>

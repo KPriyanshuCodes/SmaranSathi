@@ -11,10 +11,11 @@ import {
   Palette,
   Layout
 } from 'lucide-react';
-import { RegionalLanguage, User, UserRole } from '../../types';
+import { RegionalLanguage, User, UserRole, UIThemePalette, UILayoutMode } from '../../types';
 import { LANGUAGE_LABELS, UI_TRANSLATIONS } from '../../data/nerContent';
 import { soundEffects } from '../../utils/speechAndAudio';
 import { FloatingSOSButton } from './FloatingSOSButton';
+import { THEME_CONFIGS } from '../../utils/themeConfig';
 
 interface HeaderProps {
   currentUser: User;
@@ -22,10 +23,11 @@ interface HeaderProps {
   onLanguageChange: (lang: RegionalLanguage) => void;
   onEditProfile: () => void;
   onLogout: () => void;
-  onOpenDesignStudio?: () => void;
   onTriggerSOS?: () => void;
   patientName?: string;
   contactName?: string;
+  themePalette?: UIThemePalette;
+  layoutMode?: UILayoutMode;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -34,48 +36,50 @@ export const Header: React.FC<HeaderProps> = ({
   onLanguageChange,
   onEditProfile,
   onLogout,
-  onOpenDesignStudio,
   onTriggerSOS,
   patientName,
   contactName,
+  themePalette = 'default',
+  layoutMode = 'standard',
 }) => {
   const t = UI_TRANSLATIONS[currentLanguage] || UI_TRANSLATIONS.en;
   const isElderly = currentUser.role === 'elderly';
+  const activeTheme = THEME_CONFIGS[themePalette] || THEME_CONFIGS.default;
 
   return (
     <header 
-      style={{ background: 'linear-gradient(to right, #C3F2D6, #8DE5A6, #6BC1B8, #3E82F0)' }}
-      className="sticky top-0 z-40 border-b-2 border-[#6BC1B8]/40 shadow-sm transition-all"
+      style={{ background: activeTheme.headerGradient }}
+      className="sticky top-0 z-40 border-b-2 shadow-sm transition-all duration-300"
     >
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between gap-3">
         {/* Left: Brand Logo & Cultural Title */}
         <div className="flex items-center gap-3 shrink-0">
-          <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white/95 rounded-2xl flex items-center justify-center text-[#3E82F0] shadow-md border-2 border-[#8DE5A6]">
-            <Heart className="w-6 h-6 fill-[#3E82F0] text-[#3E82F0]" />
+          <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white/95 rounded-2xl flex items-center justify-center text-[#2794EB] shadow-md border-2 border-[#47D6B6]">
+            <Heart className="w-6 h-6 fill-[#2794EB] text-[#2794EB]" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xl sm:text-2xl font-black tracking-tight text-[#1E293B]">
+              <span className="text-xl sm:text-2xl font-black tracking-tight text-white drop-shadow-xs">
                 स्मरण साथी
               </span>
-              <span className="text-xs font-black text-[#1E293B] bg-white/90 border border-[#8DE5A6] px-2 py-0.5 rounded-full shadow-2xs">
+              <span className="text-xs font-black text-[#17B3C1] bg-white/95 border border-[#47D6B6] px-2 py-0.5 rounded-full shadow-2xs">
                 Smaran Sathi
               </span>
-              <span className="hidden xl:inline-flex items-center gap-1.5 text-xs font-black text-[#1E293B] bg-white/90 border border-[#8DE5A6] px-2 py-0.5 rounded-full shadow-2xs">
+              <span className="hidden xl:inline-flex items-center gap-1.5 text-xs font-black text-[#17B3C1] bg-white/95 border border-[#47D6B6] px-2 py-0.5 rounded-full shadow-2xs">
                 {isElderly ? (
                   <>
-                    <Sparkles className="w-3.5 h-3.5 text-[#3E82F0]" />
+                    <Sparkles className="w-3.5 h-3.5 text-[#2794EB]" />
                     <span>Senior Portal</span>
                   </>
                 ) : (
                   <>
-                    <ShieldCheck className="w-3.5 h-3.5 text-[#3E82F0]" />
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#2794EB]" />
                     <span>Caregiver Hub</span>
                   </>
                 )}
               </span>
             </div>
-            <p className="text-xs text-[#1E293B] font-bold flex items-center gap-1.5 pt-0.5">
+            <p className="text-xs text-white/95 font-bold flex items-center gap-1.5 pt-0.5 drop-shadow-xs">
               <span className="text-[11px]">🌸</span>
               <span className="italic tracking-wide">हर कदम पर आपका हमसफ़र।</span>
             </p>
@@ -85,8 +89,8 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Right: Language Selector, User Profile & Actions (Clean, uncrowded layout) */}
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 ml-auto">
           {/* Regional Language Picker - Clear, High-Contrast, Never Overlapped */}
-          <div className="relative z-30 flex items-center bg-white/95 border-2 border-[#8DE5A6] hover:border-[#6BC1B8] px-2.5 sm:px-3 py-1.5 rounded-full text-[#1E293B] font-bold shadow-xs transition-colors shrink-0">
-            <Globe className="w-4 h-4 text-[#3E82F0] mr-1.5 shrink-0" />
+          <div className="relative z-30 flex items-center bg-white/95 border-2 border-[#47D6B6] hover:border-[#2794EB] px-2.5 sm:px-3 py-1.5 rounded-full text-[#1E293B] font-bold shadow-xs transition-colors shrink-0">
+            <Globe className="w-4 h-4 text-[#2794EB] mr-1.5 shrink-0" />
             <select
               id="language-select"
               aria-label="Select Regional Language"
@@ -110,46 +114,30 @@ export const Header: React.FC<HeaderProps> = ({
               soundEffects.playGentleTap();
               onEditProfile();
             }}
-            className="group flex items-center gap-2 bg-white/95 hover:bg-white border-2 border-[#8DE5A6] hover:border-[#6BC1B8] px-2.5 sm:px-3 py-1.5 rounded-full shadow-xs cursor-pointer transition-all active:scale-98"
+            className="group flex items-center gap-2 bg-white/95 hover:bg-white border-2 border-[#47D6B6] hover:border-[#2794EB] px-2.5 sm:px-3 py-1.5 rounded-full shadow-xs cursor-pointer transition-all active:scale-98"
             title="Click to edit profile and change photo"
           >
             <div className="relative">
               <img
                 src={currentUser.avatar || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=250&q=80'}
                 alt={currentUser.name}
-                className="w-7 h-7 rounded-full object-cover border-2 border-[#6BC1B8] group-hover:border-[#3E82F0] shrink-0"
+                className="w-7 h-7 rounded-full object-cover border-2 border-[#17B3C1] group-hover:border-[#2794EB] shrink-0"
               />
-              <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-[#3E82F0] rounded-full flex items-center justify-center text-white text-[9px] shadow-xs group-hover:scale-110 transition-transform">
+              <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-[#2794EB] rounded-full flex items-center justify-center text-white text-[9px] shadow-xs group-hover:scale-110 transition-transform">
                 <Camera className="w-2 h-2 text-white" />
               </span>
             </div>
             <div className="hidden lg:flex flex-col text-left">
-              <span className="text-xs font-black text-[#1E293B] max-w-[110px] truncate leading-tight group-hover:text-[#3E82F0]">
+              <span className="text-xs font-black text-[#1E293B] max-w-[110px] truncate leading-tight group-hover:text-[#2794EB]">
                 {currentUser.name}
               </span>
               <span className="text-[10px] font-bold text-slate-600 group-hover:text-slate-900 flex items-center gap-1">
                 <span>{isElderly ? 'Senior' : 'Caregiver'}</span>
-                <span className="text-[9px] font-extrabold text-[#3E82F0] bg-blue-50 px-1 py-0.2 rounded">Edit ✏️</span>
+                <span className="text-[9px] font-extrabold text-[#17B3C1] bg-[#BFF8D4] px-1 py-0.2 rounded">Edit ✏️</span>
               </span>
             </div>
           </button>
 
-          {/* UI & Layout Studio Button */}
-          {onOpenDesignStudio && (
-            <button
-              id="header-design-studio-btn"
-              type="button"
-              onClick={() => {
-                soundEffects.playGentleTap();
-                onOpenDesignStudio();
-              }}
-              className="flex items-center gap-1.5 bg-white/95 hover:bg-white text-[#1E293B] hover:text-[#3E82F0] border-2 border-[#8DE5A6] hover:border-[#3E82F0] px-3 py-1.5 rounded-full text-xs sm:text-sm font-black shadow-xs cursor-pointer transition-all active:scale-95"
-              title="Explore UI/UX Designs, Layouts & Themes"
-            >
-              <Palette className="w-4 h-4 text-[#3E82F0]" />
-              <span className="hidden xl:inline">Designs</span>
-            </button>
-          )}
 
           {/* Logout */}
           <button
