@@ -972,6 +972,37 @@ app.post('/api/users', (req: Request, res: Response) => {
     return res.json({ success: true, user: users[existingIdx] });
   }
 
+  // Enforce one user per phone number restriction
+  if (phone) {
+    const rawClean = String(phone).replace(/\D/g, '');
+    const cleanPhone = rawClean.length === 12 && rawClean.startsWith('91') 
+      ? rawClean.slice(2) 
+      : (rawClean.length === 11 && rawClean.startsWith('0') ? rawClean.slice(1) : rawClean);
+
+    if (cleanPhone.length >= 10) {
+      const duplicate = users.find(u => {
+        if (!u.phone) return false;
+        const uRaw = String(u.phone).replace(/\D/g, '');
+        const uClean = uRaw.length === 12 && uRaw.startsWith('91') 
+          ? uRaw.slice(2) 
+          : (uRaw.length === 11 && uRaw.startsWith('0') ? uRaw.slice(1) : uRaw);
+        return uClean === cleanPhone;
+      });
+
+      if (duplicate) {
+        return res.status(409).json({ 
+          error: 'Phone number already registered',
+          message: `Phone number is already associated with an existing account (${duplicate.name}). Only one user can register from one phone number.`,
+          existingUser: {
+            id: duplicate.id,
+            name: duplicate.name,
+            role: duplicate.role
+          }
+        });
+      }
+    }
+  }
+
   const isCaregiver = role === 'caregiver';
   const generatedCode = isCaregiver 
     ? (caregiver_code ? String(caregiver_code).trim().toUpperCase() : `CG-${Math.floor(1000 + Math.random() * 9000)}`)

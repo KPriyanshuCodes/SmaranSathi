@@ -27,7 +27,9 @@ import {
   Compass,
   Locate,
   Navigation,
-  Loader2
+  Loader2,
+  Phone,
+  AlertCircle
 } from 'lucide-react';
 import { AppLogo } from '../common/AppLogo';
 import { FaceLoginModal } from './FaceLoginModal';
@@ -42,7 +44,10 @@ import {
   clearRememberedUser,
   saveReminderToFirebase,
   linkElderlyToCaregiverInFirebase,
-  signInWithGoogle
+  signInWithGoogle,
+  findUserByPhoneNumber,
+  normalizePhoneNumber,
+  formatPhoneNumberDisplay
 } from '../../lib/firebase';
 import { LANGUAGE_LABELS } from '../../data/nerContent';
 import { NER_STATES_DATA } from '../../data/nerLocations';
@@ -63,6 +68,10 @@ const LOGIN_I18N: Record<RegionalLanguage, {
   your_name: string;
   your_name_hint: string;
   phone_optional: string;
+  phone_label: string;
+  phone_placeholder: string;
+  phone_rule_badge: string;
+  phone_duplicate_warn: string;
   caregiver_code_label: string;
   location_section_title: string;
   location_state_label: string;
@@ -96,6 +105,10 @@ const LOGIN_I18N: Record<RegionalLanguage, {
     your_name: 'Your Full Name',
     your_name_hint: 'Enter your name',
     phone_optional: 'Phone Number (Optional)',
+    phone_label: 'Mobile / Phone Number',
+    phone_placeholder: '10-digit mobile number',
+    phone_rule_badge: '1 Account Per Number',
+    phone_duplicate_warn: 'This phone number is already registered to another account. Only 1 account can be registered per phone number.',
     caregiver_code_label: 'Connect Caregiver Code (Optional)',
     location_section_title: 'Location (North Eastern Region, India)',
     location_state_label: 'Select State (NE India)',
@@ -129,6 +142,10 @@ const LOGIN_I18N: Record<RegionalLanguage, {
     your_name: 'আপোনাৰ সম্পূৰ্ণ নাম',
     your_name_hint: 'আপোনাৰ নাম লিখক',
     phone_optional: 'ফোন নম্বৰ (ঐচ্ছিক)',
+    phone_label: 'মোবাইল / ফোন নম্বৰ',
+    phone_placeholder: '১০-অংকৰ মোবাইল নম্বৰ',
+    phone_rule_badge: '১ নম্বৰত ১টা একাউণ্ট',
+    phone_duplicate_warn: 'এই ফোন নম্বৰটো ইতিমধ্যে পঞ্জীয়ন কৰা হৈছে। এটা নম্বৰত কেৱল ১টা একাউণ্টহে হ’ব পাৰে।',
     caregiver_code_label: 'পৰিচৰ্যাকৰ্তাৰ ক’ড (ঐচ্ছিক)',
     location_section_title: 'স্থান (উত্তৰ-পূৰ্বাঞ্চল, ভাৰত)',
     location_state_label: 'ৰাজ্য বাছক (উত্তৰ-পূব ভাৰত)',
@@ -162,6 +179,10 @@ const LOGIN_I18N: Record<RegionalLanguage, {
     your_name: 'Kyrteng Bapura',
     your_name_hint: 'Thep la ka kyrteng',
     phone_optional: 'Phone Number (Jied)',
+    phone_label: 'Number Mobile / Phone',
+    phone_placeholder: '10-digit mobile number',
+    phone_rule_badge: '1 Account Mar Kawei ka Number',
+    phone_duplicate_warn: 'Kane ka phone number la don lypa. Tang marwei lah ban register na kawei ka number.',
     caregiver_code_label: 'Code Nongsumar (Jied)',
     location_section_title: 'Ka Shnong (Dong Shatei Lam Mihngi)',
     location_state_label: 'Jied Jylla (NE India)',
@@ -195,6 +216,10 @@ const LOGIN_I18N: Record<RegionalLanguage, {
     your_name: 'অদোমগী মমিং',
     your_name_hint: 'মমিং ইরো',
     phone_optional: 'ফোন নম্বৰ (অপ্সনেল)',
+    phone_label: 'মোবাইল / ফোন নম্বৰ',
+    phone_placeholder: '১০-মশিংগী মোবাইল নম্বৰ',
+    phone_rule_badge: 'নম্বৰ অমদা একাউন্ট অমা খক্তা',
+    phone_duplicate_warn: 'ফোন নম্বৰসি হান্না ৰেজিস্টাৰ তৌৰবনি। নম্বৰ অমদা একাউন্ট অমা খক্তা শেমবা য়াই।',
     caregiver_code_label: 'কেয়ৰগিভৰ কোড (অপ্সনেল)',
     location_section_title: 'মফম (অৱাং নোংপোক ভারত খক্তদা)',
     location_state_label: 'ষ্টেট খল্লু (NE India)',
@@ -228,6 +253,10 @@ const LOGIN_I18N: Record<RegionalLanguage, {
     your_name: 'आपका पूरा नाम',
     your_name_hint: 'अपना नाम दर्ज करें',
     phone_optional: 'फ़ोन नंबर (वैकल्पिक)',
+    phone_label: 'मोबाइल / फ़ोन नंबर',
+    phone_placeholder: '10-अंकों का मोबाइल नंबर',
+    phone_rule_badge: '1 नंबर पर 1 ही खाता',
+    phone_duplicate_warn: 'यह फ़ोन नंबर पहले से पंजीकृत है। एक नंबर से केवल 1 खाता ही बनाया जा सकता है।',
     caregiver_code_label: 'केयरगिवर कोड जोड़ें (वैकल्पिक)',
     location_section_title: 'स्थान (केवल पूर्वोत्तर भारत / North East India)',
     location_state_label: 'राज्य चुनें (पूर्वोत्तर भारत)',
@@ -303,6 +332,94 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   // Automatic Location Detection State
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [detectedLocationInfo, setDetectedLocationInfo] = useState<DetectedLocationResult | null>(null);
+
+  // Phone Number Uniqueness & Validation States
+  const [elderlyPhoneDuplicate, setElderlyPhoneDuplicate] = useState<User | null>(null);
+  const [elderlyPhoneAvailable, setElderlyPhoneAvailable] = useState<boolean>(false);
+  const [isCheckingElderlyPhone, setIsCheckingElderlyPhone] = useState<boolean>(false);
+
+  const [caregiverPhoneDuplicate, setCaregiverPhoneDuplicate] = useState<User | null>(null);
+  const [caregiverPhoneAvailable, setCaregiverPhoneAvailable] = useState<boolean>(false);
+  const [isCheckingCaregiverPhone, setIsCheckingCaregiverPhone] = useState<boolean>(false);
+
+  // Phone uniqueness verification helper
+  const verifyPhoneUniqueness = async (rawPhone: string, role: UserRole): Promise<User | null> => {
+    const clean = normalizePhoneNumber(rawPhone);
+    if (!clean || clean.length < 10) {
+      if (role === 'elderly') {
+        setElderlyPhoneDuplicate(null);
+        setElderlyPhoneAvailable(false);
+        setIsCheckingElderlyPhone(false);
+      } else {
+        setCaregiverPhoneDuplicate(null);
+        setCaregiverPhoneAvailable(false);
+        setIsCheckingCaregiverPhone(false);
+      }
+      return null;
+    }
+
+    if (role === 'elderly') {
+      setIsCheckingElderlyPhone(true);
+    } else {
+      setIsCheckingCaregiverPhone(true);
+    }
+
+    try {
+      // 1. Check in Firestore & local registry
+      const fromDb = await findUserByPhoneNumber(clean);
+      // 2. Check in loaded props users array
+      const fromProps = users.find((u) => u.phone && normalizePhoneNumber(u.phone) === clean);
+      const duplicate = fromDb || fromProps || null;
+
+      if (role === 'elderly') {
+        setElderlyPhoneDuplicate(duplicate);
+        setElderlyPhoneAvailable(!duplicate);
+      } else {
+        setCaregiverPhoneDuplicate(duplicate);
+        setCaregiverPhoneAvailable(!duplicate);
+      }
+      return duplicate;
+    } catch (err) {
+      console.warn('Error checking phone uniqueness:', err);
+      return null;
+    } finally {
+      if (role === 'elderly') {
+        setIsCheckingElderlyPhone(false);
+      } else {
+        setIsCheckingCaregiverPhone(false);
+      }
+    }
+  };
+
+  const handleElderlyPhoneChange = (val: string) => {
+    const clean = val.replace(/[^\d+ ]/g, '');
+    setElderlyPhone(clean);
+    setErrorMessage('');
+    verifyPhoneUniqueness(clean, 'elderly');
+  };
+
+  const handleCaregiverPhoneChange = (val: string) => {
+    const clean = val.replace(/[^\d+ ]/g, '');
+    setCaregiverPhone(clean);
+    setErrorMessage('');
+    verifyPhoneUniqueness(clean, 'caregiver');
+  };
+
+  // Helper to switch to Login tab with pre-filled phone number
+  const switchToLoginWithPhone = (phoneNum: string, role: UserRole) => {
+    const cleanPhone = normalizePhoneNumber(phoneNum);
+    setActiveTab(role);
+    setAuthMode('login');
+    if (role === 'elderly') {
+      setElderlyName(cleanPhone || phoneNum);
+      setElderlyPin('');
+    } else {
+      setCaregiverName(cleanPhone || phoneNum);
+      setCaregiverPin('');
+    }
+    setErrorMessage(`Phone number verified. Please enter the 4-digit PIN for your account to sign in.`);
+    soundEffects.playGentleTap();
+  };
 
   const t = LOGIN_I18N[selectedLang] || LOGIN_I18N.en;
 
@@ -462,6 +579,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
       // 3. Client state fallback
       if (!matchedUser) {
+        const cleanPhoneId = normalizePhoneNumber(identifier);
         matchedUser = users.find(
           (u) =>
             u.role === activeTab &&
@@ -469,6 +587,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             (!identifier ||
               u.name.toLowerCase() === identifier.toLowerCase() ||
               u.phone === identifier ||
+              (cleanPhoneId && cleanPhoneId.length >= 10 && u.phone && normalizePhoneNumber(u.phone) === cleanPhoneId) ||
               u.caregiver_code?.toLowerCase() === identifier.toLowerCase() ||
               u.patient_id?.toLowerCase() === identifier.toLowerCase() ||
               u.id.toLowerCase() === identifier.toLowerCase())
@@ -565,6 +684,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         setLoading(false);
         return;
       }
+
+      // Strict Phone Number Validation and Uniqueness Check
+      const cleanElderlyPhone = normalizePhoneNumber(elderlyPhone);
+      if (!elderlyPhone.trim() || cleanElderlyPhone.length < 10) {
+        setErrorMessage('Please enter a valid 10-digit mobile phone number for registration.');
+        setLoading(false);
+        soundEffects.playGentleEncouragement();
+        return;
+      }
+
+      const duplicateElderly = await verifyPhoneUniqueness(cleanElderlyPhone, 'elderly');
+      if (duplicateElderly) {
+        setElderlyPhoneDuplicate(duplicateElderly);
+        setErrorMessage(
+          `This phone number (+91 ${cleanElderlyPhone.slice(-10)}) is already registered to ${duplicateElderly.name} (${duplicateElderly.role === 'elderly' ? 'Senior Citizen' : 'Caregiver'}). Only 1 user can register per phone number.`
+        );
+        setLoading(false);
+        soundEffects.playGentleEncouragement();
+        return;
+      }
+
       if (!elderlyPin || elderlyPin.length < 4) {
         setErrorMessage('Please create a 4-digit PIN.');
         setLoading(false);
@@ -581,7 +721,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         language_pref: selectedLang,
         pin: elderlyPin.slice(-4),
         age: Number(elderlyAge) || 72,
-        ...(elderlyPhone.trim() ? { phone: elderlyPhone.trim() } : {}),
+        phone: formatPhoneNumberDisplay(cleanElderlyPhone),
         location: `${elderlyCity}, ${elderlyState}, North East India`,
         diagnosis_note: 'Enjoys regional memory activities and cultural stories.',
         location_sharing: false,
@@ -598,6 +738,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       };
 
       try {
+        // Backend API check & persistence with phone uniqueness verification
+        try {
+          const apiRes = await fetch('/api/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newElderly),
+          });
+          if (apiRes.status === 409) {
+            const errData = await apiRes.json();
+            setErrorMessage(errData.message || 'This phone number is already registered to another user.');
+            setLoading(false);
+            soundEffects.playGentleEncouragement();
+            return;
+          }
+        } catch (apiErr) {
+          console.warn('API POST /api/users warning:', apiErr);
+        }
+
         await saveUserToFirebase(newElderly);
         
         if (elderlyCaregiverCode.trim()) {
@@ -618,16 +776,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           saveRememberedUser(newElderly);
         }
 
-        fetch('/api/users', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newElderly),
-        }).catch(() => {});
-
         soundEffects.playSuccessChime();
         onRegisterUser(newElderly);
         onLogin(newElderly);
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.message?.includes('already registered')) {
+          setErrorMessage(err.message);
+          setLoading(false);
+          soundEffects.playGentleEncouragement();
+          return;
+        }
         soundEffects.playSuccessChime();
         if (rememberMe) saveRememberedUser(newElderly);
         onRegisterUser(newElderly);
@@ -642,6 +800,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         setLoading(false);
         return;
       }
+
+      // Strict Phone Number Validation and Uniqueness Check
+      const cleanCaregiverPhone = normalizePhoneNumber(caregiverPhone);
+      if (!caregiverPhone.trim() || cleanCaregiverPhone.length < 10) {
+        setErrorMessage('Please enter a valid 10-digit mobile phone number for registration.');
+        setLoading(false);
+        soundEffects.playGentleEncouragement();
+        return;
+      }
+
+      const duplicateCaregiver = await verifyPhoneUniqueness(cleanCaregiverPhone, 'caregiver');
+      if (duplicateCaregiver) {
+        setCaregiverPhoneDuplicate(duplicateCaregiver);
+        setErrorMessage(
+          `This phone number (+91 ${cleanCaregiverPhone.slice(-10)}) is already registered to ${duplicateCaregiver.name} (${duplicateCaregiver.role === 'elderly' ? 'Senior Citizen' : 'Caregiver'}). Only 1 user can register per phone number.`
+        );
+        setLoading(false);
+        soundEffects.playGentleEncouragement();
+        return;
+      }
+
       if (!caregiverPin || caregiverPin.length < 4) {
         setErrorMessage('Please create a 4-digit PIN.');
         setLoading(false);
@@ -656,7 +835,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         role: 'caregiver',
         language_pref: 'en',
         pin: caregiverPin.slice(-4),
-        ...(caregiverPhone.trim() ? { phone: caregiverPhone.trim() } : {}),
+        phone: formatPhoneNumberDisplay(cleanCaregiverPhone),
         caregiver_code: formattedCode,
         location: `${caregiverCity}, ${caregiverState}, North East India`,
         diagnosis_note: caregiverRelation,
@@ -669,22 +848,40 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       };
 
       try {
+        // Backend API check & persistence with phone uniqueness verification
+        try {
+          const apiRes = await fetch('/api/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newCaregiver),
+          });
+          if (apiRes.status === 409) {
+            const errData = await apiRes.json();
+            setErrorMessage(errData.message || 'This phone number is already registered to another user.');
+            setLoading(false);
+            soundEffects.playGentleEncouragement();
+            return;
+          }
+        } catch (apiErr) {
+          console.warn('API POST /api/users warning:', apiErr);
+        }
+
         await saveUserToFirebase(newCaregiver);
 
         if (rememberMe) {
           saveRememberedUser(newCaregiver);
         }
 
-        fetch('/api/users', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newCaregiver),
-        }).catch(() => {});
-
         soundEffects.playSuccessChime();
         onRegisterUser(newCaregiver);
         onLogin(newCaregiver);
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.message?.includes('already registered')) {
+          setErrorMessage(err.message);
+          setLoading(false);
+          soundEffects.playGentleEncouragement();
+          return;
+        }
         soundEffects.playSuccessChime();
         if (rememberMe) saveRememberedUser(newCaregiver);
         onRegisterUser(newCaregiver);
@@ -1033,11 +1230,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   </div>
                 </div>
 
-                {/* Optional Name to resolve if multiple matching PINs */}
+                {/* Optional Name / Phone to resolve if multiple matching PINs */}
                 <div className="space-y-1.5">
                   <label className="block text-xs font-black text-[#1E293B] flex items-center justify-between">
-                    <span>{t.your_name} (Optional):</span>
-                    <span className="text-xs text-slate-400 font-bold">Helps quick lookup</span>
+                    <span>{t.your_name} / Phone (Optional):</span>
+                    <span className="text-xs text-[#2794EB] font-bold">Name or Mobile No.</span>
                   </label>
                   <div className="relative">
                     <UserIcon className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -1045,7 +1242,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                       type="text"
                       value={elderlyName}
                       onChange={(e) => setElderlyName(e.target.value)}
-                      placeholder={t.your_name_hint}
+                      placeholder="Enter name, phone number, or ID"
                       className="w-full min-h-[50px] pl-12 pr-4 text-sm sm:text-base font-bold bg-white text-[#1E293B] border-2 border-[#47D6B6] focus:border-[#47D6B6] rounded-2xl outline-none transition-all shadow-2xs"
                     />
                   </div>
@@ -1096,6 +1293,75 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     placeholder="Enter senior citizen full name"
                     className="w-full min-h-[50px] px-4 text-base font-bold bg-white text-[#1E293B] border-2 border-[#47D6B6] focus:border-[#47D6B6] rounded-xl outline-none shadow-2xs"
                   />
+                </div>
+
+                {/* Phone Number with 1-User-Per-Number Constraint */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-[#1E293B] flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-[#2794EB]" />
+                      <span>{t.phone_label}:</span>
+                      <span className="text-rose-500 font-bold">*</span>
+                    </label>
+                    <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                      {t.phone_rule_badge}
+                    </span>
+                  </div>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-3 text-xs font-black text-slate-500 select-none flex items-center gap-1">
+                      <span>🇮🇳</span>
+                      <span>+91</span>
+                    </span>
+                    <input
+                      type="tel"
+                      required
+                      value={elderlyPhone}
+                      onChange={(e) => handleElderlyPhoneChange(e.target.value)}
+                      placeholder={t.phone_placeholder}
+                      maxLength={14}
+                      className={`w-full min-h-[50px] pl-16 pr-10 text-base font-bold bg-white text-[#1E293B] border-2 rounded-xl outline-none shadow-2xs transition-all ${
+                        elderlyPhoneDuplicate
+                          ? 'border-rose-400 bg-rose-50/40 focus:border-rose-500'
+                          : elderlyPhoneAvailable
+                          ? 'border-emerald-500 bg-emerald-50/20 focus:border-emerald-500'
+                          : 'border-[#47D6B6] focus:border-[#47D6B6]'
+                      }`}
+                    />
+                    <div className="absolute right-3">
+                      {isCheckingElderlyPhone ? (
+                        <Loader2 className="w-4 h-4 text-[#2794EB] animate-spin" />
+                      ) : elderlyPhoneDuplicate ? (
+                        <AlertCircle className="w-5 h-5 text-rose-500" />
+                      ) : elderlyPhoneAvailable ? (
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {/* Duplicate Phone Warning & Quick-Switch */}
+                  {elderlyPhoneDuplicate && (
+                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs space-y-1.5 animate-fadeIn">
+                      <div className="flex items-start gap-1.5 font-black">
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                        <span>This phone number is already registered to {elderlyPhoneDuplicate.name} ({elderlyPhoneDuplicate.role === 'elderly' ? 'Senior' : 'Caregiver'}). Only 1 account can be registered per phone number.</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => switchToLoginWithPhone(elderlyPhone, elderlyPhoneDuplicate.role)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-black text-xs cursor-pointer shadow-xs transition-colors"
+                      >
+                        <LogIn className="w-3.5 h-3.5" />
+                        <span>Sign In with this Number Instead</span>
+                      </button>
+                    </div>
+                  )}
+                  {elderlyPhoneAvailable && (
+                    <p className="text-[11px] font-bold text-emerald-700 flex items-center gap-1 pl-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Phone number verified & available for new profile</span>
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -1379,7 +1645,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
                 <div className="space-y-2">
                   <label className="block text-sm font-black text-[#1E293B] flex items-center justify-between">
-                    <span>Caregiver Name / Code:</span>
+                    <span>Caregiver Name / Code / Phone:</span>
                     <span className="text-xs text-[#2794EB] font-bold">Registered Details</span>
                   </label>
                   <div className="relative">
@@ -1388,7 +1654,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                       type="text"
                       value={caregiverName}
                       onChange={(e) => setCaregiverName(e.target.value)}
-                      placeholder="Enter Caregiver Name or Code"
+                      placeholder="Enter Caregiver Name, Code or Mobile No."
                       className="w-full min-h-[54px] pl-12 pr-4 text-base font-bold bg-white text-[#1E293B] border-2 border-[#47D6B6] focus:border-[#47D6B6] focus:ring-2 focus:ring-[#47D6B6]/20 rounded-2xl outline-none transition-all shadow-2xs"
                     />
                   </div>
@@ -1457,6 +1723,75 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     placeholder="Enter caregiver name"
                     className="w-full min-h-[50px] px-4 text-base font-bold bg-white text-[#1E293B] border-2 border-[#47D6B6] focus:border-[#47D6B6] rounded-xl outline-none shadow-2xs"
                   />
+                </div>
+
+                {/* Phone Number with 1-User-Per-Number Constraint */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-[#1E293B] flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-[#2794EB]" />
+                      <span>{t.phone_label}:</span>
+                      <span className="text-rose-500 font-bold">*</span>
+                    </label>
+                    <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                      {t.phone_rule_badge}
+                    </span>
+                  </div>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-3 text-xs font-black text-slate-500 select-none flex items-center gap-1">
+                      <span>🇮🇳</span>
+                      <span>+91</span>
+                    </span>
+                    <input
+                      type="tel"
+                      required
+                      value={caregiverPhone}
+                      onChange={(e) => handleCaregiverPhoneChange(e.target.value)}
+                      placeholder={t.phone_placeholder}
+                      maxLength={14}
+                      className={`w-full min-h-[50px] pl-16 pr-10 text-base font-bold bg-white text-[#1E293B] border-2 rounded-xl outline-none shadow-2xs transition-all ${
+                        caregiverPhoneDuplicate
+                          ? 'border-rose-400 bg-rose-50/40 focus:border-rose-500'
+                          : caregiverPhoneAvailable
+                          ? 'border-emerald-500 bg-emerald-50/20 focus:border-emerald-500'
+                          : 'border-[#47D6B6] focus:border-[#47D6B6]'
+                      }`}
+                    />
+                    <div className="absolute right-3">
+                      {isCheckingCaregiverPhone ? (
+                        <Loader2 className="w-4 h-4 text-[#2794EB] animate-spin" />
+                      ) : caregiverPhoneDuplicate ? (
+                        <AlertCircle className="w-5 h-5 text-rose-500" />
+                      ) : caregiverPhoneAvailable ? (
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {/* Duplicate Phone Warning & Quick-Switch */}
+                  {caregiverPhoneDuplicate && (
+                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs space-y-1.5 animate-fadeIn">
+                      <div className="flex items-start gap-1.5 font-black">
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                        <span>This phone number is already registered to {caregiverPhoneDuplicate.name} ({caregiverPhoneDuplicate.role === 'elderly' ? 'Senior' : 'Caregiver'}). Only 1 account can be registered per phone number.</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => switchToLoginWithPhone(caregiverPhone, caregiverPhoneDuplicate.role)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-black text-xs cursor-pointer shadow-xs transition-colors"
+                      >
+                        <LogIn className="w-3.5 h-3.5" />
+                        <span>Sign In with this Number Instead</span>
+                      </button>
+                    </div>
+                  )}
+                  {caregiverPhoneAvailable && (
+                    <p className="text-[11px] font-bold text-emerald-700 flex items-center gap-1 pl-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Phone number verified & available for new caregiver profile</span>
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

@@ -32,7 +32,12 @@ import { NER_STATES_DATA } from '../../data/nerLocations';
 import { soundEffects } from '../../utils/speechAndAudio';
 import { downloadPhoto } from '../../utils/downloadPhoto';
 import { autoDetectLocation, DetectedLocationResult } from '../../utils/locationDetector';
-import { searchCaregiverByCodeOrName, unlinkElderlyFromCaregiverInFirebase } from '../../lib/firebase';
+import { 
+  searchCaregiverByCodeOrName, 
+  unlinkElderlyFromCaregiverInFirebase,
+  findUserByPhoneNumber,
+  normalizePhoneNumber
+} from '../../lib/firebase';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -191,6 +196,22 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
     setIsSaving(true);
     setErrorMessage('');
+
+    // Check phone number uniqueness if modified
+    if (phone.trim()) {
+      const cleanPhone = normalizePhoneNumber(phone);
+      if (cleanPhone.length >= 10) {
+        const existingWithPhone = await findUserByPhoneNumber(cleanPhone, user.id);
+        if (existingWithPhone && existingWithPhone.id !== user.id) {
+          setErrorMessage(
+            `This phone number (+91 ${cleanPhone.slice(-10)}) is already registered to ${existingWithPhone.name}. Only one user can register per phone number.`
+          );
+          setIsSaving(false);
+          soundEffects.playGentleEncouragement();
+          return;
+        }
+      }
+    }
 
     const updatedUser: User = {
       ...user,

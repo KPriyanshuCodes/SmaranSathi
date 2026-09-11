@@ -308,6 +308,77 @@ export async function getCaregiversFromFirebase(): Promise<User[]> {
   }
 }
 
+/**
+ * Normalizes phone numbers by stripping non-digit characters.
+ * Handles Indian phone prefixes (+91, 91, 0) and standard 10-digit formats.
+ */
+export function normalizePhoneNumber(phone: string): string {
+  if (!phone) return '';
+  let digits = phone.replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) {
+    digits = digits.slice(2);
+  } else if (digits.length === 11 && digits.startsWith('0')) {
+    digits = digits.slice(1);
+  }
+  return digits;
+}
+
+/**
+ * Formats a 10-digit number into standard +91 XXXXX XXXXX display.
+ */
+export function formatPhoneNumberDisplay(phone: string): string {
+  const normalized = normalizePhoneNumber(phone);
+  if (normalized.length === 10) {
+    return `+91 ${normalized.slice(0, 5)} ${normalized.slice(5)}`;
+  }
+  return phone;
+}
+
+/**
+ * Checks whether a phone number is already registered to an existing account.
+ * Enforces strictly that only one user can register per phone number.
+ * Checks Firestore users collection, local device cache, and returns the matching user if found.
+ */
+export async function findUserByPhoneNumber(
+  rawPhone: string, 
+  excludeUserId?: string
+): Promise<User | null> {
+  const cleanPhone = normalizePhoneNumber(rawPhone);
+  if (!cleanPhone || cleanPhone.length < 10) return null;
+
+  try {
+    // 1. Check all users in Firestore
+    const usersSnap = await getDocs(collection(db, USERS_COLLECTION));
+    const allUsers = usersSnap.docs.map((d) => d.data() as User);
+    
+    const matched = allUsers.find((u) => {
+      if (!u.phone) return false;
+      if (excludeUserId && u.id === excludeUserId) return false;
+      return normalizePhoneNumber(u.phone) === cleanPhone;
+    });
+
+    if (matched) return matched;
+  } catch (err) {
+    console.warn('Error querying phone number in Firestore:', err);
+  }
+
+  // 2. Check locally saved users cache
+  try {
+    const localUsers = getAllLocallySavedUsers();
+    const matchedLocal = localUsers.find((u) => {
+      if (!u.phone) return false;
+      if (excludeUserId && u.id === excludeUserId) return false;
+      return normalizePhoneNumber(u.phone) === cleanPhone;
+    });
+
+    if (matchedLocal) return matchedLocal;
+  } catch (err) {
+    console.warn('Error querying local users for phone:', err);
+  }
+
+  return null;
+}
+
 export async function findUserByCredentials(
   role: UserRole,
   pin: string,
@@ -316,6 +387,7 @@ export async function findUserByCredentials(
   try {
     const cleanPin = pin.trim();
     const cleanId = identifier?.trim().toLowerCase();
+    const cleanPhoneId = normalizePhoneNumber(identifier || '');
 
     const q = query(
       collection(db, USERS_COLLECTION),
@@ -333,14 +405,16 @@ export async function findUserByCredentials(
       return matches[0];
     }
 
-    // Match by name, phone, caregiver code, patient ID, or user ID
-    const specificMatch = matches.find((u) => 
-      u.name.toLowerCase() === cleanId ||
-      u.phone?.toLowerCase() === cleanId ||
-      u.caregiver_code?.toLowerCase() === cleanId ||
-      u.patient_id?.toLowerCase() === cleanId ||
-      u.id.toLowerCase() === cleanId
-    );
+    // Match by name, phone (exact or normalized digits), caregiver code, patient ID, or user ID
+    const specificMatch = matches.find((u) => {
+      if (u.name.toLowerCase() === cleanId) return true;
+      if (u.phone?.toLowerCase() === cleanId) return true;
+      if (cleanPhoneId && cleanPhoneId.length >= 10 && u.phone && normalizePhoneNumber(u.phone) === cleanPhoneId) return true;
+      if (u.caregiver_code?.toLowerCase() === cleanId) return true;
+      if (u.patient_id?.toLowerCase() === cleanId) return true;
+      if (u.id.toLowerCase() === cleanId) return true;
+      return false;
+    });
 
     return specificMatch || matches[0];
   } catch (error) {
