@@ -743,11 +743,12 @@ AVAILABLE GAMES IN SMARAN SATHI:
 3. "picture_recognition" - Northeast Heritage & Wildlife Recognition (Kamakhya Temple, Kaziranga Rhino, Living Root Bridges, Loktak Lake, Kangla Fort). Focus: Semantic Memory, Visual Identification & Cultural Grounding.
 4. "simple_puzzle" - Heritage Craft & Landscape Puzzle. Focus: Visuospatial Reasoning, Motor Coordination & Mental Rotation.
 5. "face_match" - Familiar Faces & Loved Ones Match (Family members & caregivers). Focus: Social-Emotional Memory, Facial Feature Recall, Anxiety & Agitation Reduction.
+6. "simple_calculation" - Simple Math & Northeast Counting (Lemons, tea cups, oranges, pithas, clay diyas). Focus: Numerical Cognition, Arithmetic Fluency & Working Memory.
 
 CLINICAL PRESCRIPTION RULES:
-1. Recommend the SINGLE game from the 5 available game types that will produce the maximum therapeutic benefit for this patient's current state.
+1. Recommend the SINGLE game from the 6 available game types that will produce the maximum therapeutic benefit for this patient's current state.
 2. If the patient has moderate dementia or is showing fatigue/mistakes, prefer "face_match" or "picture_recognition" at "easy" difficulty to evoke comfort and joy without frustration.
-3. If the patient has high accuracy (>85%) and quick response (<4.5s), suggest "sequence_recall" or "simple_puzzle" or increase difficulty to "medium" to stimulate neuroplasticity.
+3. If the patient has high accuracy (>85%) and quick response (<4.5s), suggest "sequence_recall", "simple_calculation", or "simple_puzzle" or increase difficulty to "medium" to stimulate neuroplasticity.
 4. Provide a warm, uplifting encouragement message for the senior, an exact voice prompt for text-to-speech audio, and a practical actionable tip for the caregiver.`;
 
     const candidateModels = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
@@ -848,7 +849,7 @@ CLINICAL PRESCRIPTION RULES:
     }
 
     const parsed = JSON.parse(responseText || '{}');
-    const validGameTypes: GameType[] = ['memory_match', 'sequence_recall', 'picture_recognition', 'simple_puzzle', 'face_match'];
+    const validGameTypes: GameType[] = ['memory_match', 'sequence_recall', 'picture_recognition', 'simple_puzzle', 'face_match', 'simple_calculation'];
     const gameType: GameType = validGameTypes.includes(parsed.recommended_game_type) 
       ? parsed.recommended_game_type 
       : baseline.next_game_type;

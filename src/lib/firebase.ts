@@ -682,6 +682,45 @@ export async function saveGameSessionToFirebase(session: GameSession): Promise<v
   }
 }
 
+/**
+ * Real-time listener for game sessions of assigned patients.
+ * Fires whenever a patient finishes a game and records new telemetry.
+ */
+export function subscribeToPatientGameSessions(
+  patientIds: string[],
+  onSessionsUpdate: (sessions: GameSession[]) => void
+): () => void {
+  try {
+    const sessionsRef = collection(db, SESSIONS_COLLECTION);
+    const unsubscribe = onSnapshot(
+      sessionsRef,
+      (snapshot) => {
+        const items: GameSession[] = [];
+        snapshot.forEach((docSnap) => {
+          const session = docSnap.data() as GameSession;
+          if (!patientIds.length || patientIds.includes(session.user_id)) {
+            items.push(session);
+          }
+        });
+
+        items.sort(
+          (a, b) =>
+            new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime()
+        );
+        onSessionsUpdate(items);
+      },
+      (error) => {
+        console.warn('Game sessions real-time snapshot subscription warning:', error);
+      }
+    );
+
+    return unsubscribe;
+  } catch (e) {
+    console.warn('Failed to subscribe to game sessions snapshot:', e);
+    return () => {};
+  }
+}
+
 export const ALL_PROFILES_LOCAL_REGISTRY_KEY = 'smritisaathi_saved_profiles_registry';
 
 /**

@@ -60,6 +60,7 @@ import {
   saveAlertToFirebase,
   resolveAlertInFirebase,
   subscribeToCaregiverAlerts,
+  subscribeToPatientGameSessions,
   logOutFirebaseUser
 } from './lib/firebase';
 
@@ -756,6 +757,73 @@ export default function App() {
       clearInterval(pollInterval);
     };
   }, [currentUser, assignedPatients]);
+
+  // Real-time listener for Game Sessions and Cognitive Telemetry for Caregiver & Patient dashboards
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Which patient IDs to listen to
+    const targetPatientIds = currentUser.role === 'elderly' 
+      ? [currentUser.id] 
+      : assignedPatients.map((p) => p.id);
+
+    if (targetPatientIds.length === 0 && currentUser.role === 'caregiver') {
+      return;
+    }
+
+    const unsubscribe = subscribeToPatientGameSessions(
+      targetPatientIds,
+      (incomingSessions) => {
+        // Find which patient to refresh
+        const activeTargetId = currentUser.role === 'elderly' 
+          ? currentUser.id 
+          : (selectedPatientId || targetPatientIds[0]);
+
+        if (activeTargetId) {
+          // Re-fetch patient trends and recommendations in real time
+          fetch(`/api/performance-trends/${activeTargetId}`)
+            .then((res) => res.json())
+            .then((trend) => {
+              if (trend) {
+                setTrendData(trend);
+              }
+            })
+            .catch(() => {});
+
+          fetch(`/api/ai/recommendation/${activeTargetId}`)
+            .then((res) => res.json())
+            .then((rec) => {
+              if (rec) {
+                setRecommendation(rec);
+              }
+            })
+            .catch(() => {});
+        }
+      }
+    );
+
+    // Periodic poll for real-time accuracy even across networks
+    const trendPollInterval = setInterval(() => {
+      const activeTargetId = currentUser.role === 'elderly' 
+        ? currentUser.id 
+        : (selectedPatientId || targetPatientIds[0]);
+      if (activeTargetId) {
+        fetch(`/api/performance-trends/${activeTargetId}`)
+          .then((res) => res.json())
+          .then((trend) => {
+            if (trend) {
+              setTrendData(trend);
+            }
+          })
+          .catch(() => {});
+      }
+    }, 5000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(trendPollInterval);
+    };
+  }, [currentUser?.id, currentUser?.role, selectedPatientId, assignedPatients.length]);
 
   /**
    * Dedicated triggerSOS function called on confirmation from FloatingSOSButton.
