@@ -39,6 +39,7 @@ import { CaregiverSOSAlertModal } from './components/caregiver/CaregiverSOSAlert
 import { isReminderDue, getTriggerKey, calculateSnoozeTime } from './utils/reminderScheduler';
 import { recordLevelCompletion } from './utils/gameProgress';
 import { autoDetectLocation } from './utils/locationDetector';
+import { computeClientSideTrends } from './utils/cognitiveScoring';
 import { 
   getAllUsersFromFirebase, 
   saveUserToFirebase,
@@ -55,6 +56,9 @@ import {
   getFamilyForUser, 
   saveFamilyMemberToFirebase, 
   saveGameSessionToFirebase,
+  getGameSessionsForUser,
+  getLocallySavedGameSessions,
+  persistGameSessionLocally,
   getAssignedElderlyIdsForCaregiver,
   linkElderlyToCaregiverInFirebase,
   saveAlertToFirebase,
@@ -282,11 +286,41 @@ export default function App() {
         }
       }
 
-      // 5. Fetch Performance Trends
+      // 5. Fetch User-Specific Game Sessions & Sync to Backend
+      const [fbSessions, localSessions] = await Promise.all([
+        getGameSessionsForUser(userId),
+        Promise.resolve(getLocallySavedGameSessions(userId))
+      ]);
+      const sessionMap = new Map<string, GameSession>();
+      for (const s of [...fbSessions, ...localSessions]) {
+        if (s && s.id) sessionMap.set(s.id, s);
+      }
+      const combinedSessions = Array.from(sessionMap.values());
+
+      if (combinedSessions.length > 0) {
+        // Sync with backend store so Express trends calculations include all Firestore/local sessions
+        fetch('/api/game-sessions/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessions: combinedSessions })
+        }).catch(() => {});
+      }
+
+      // 6. Fetch Performance Trends
       const trendRes = await fetch(`/api/performance-trends/${userId}`);
       if (trendRes.ok) {
         const data = await trendRes.json();
-        setTrendData(data);
+        if (data && data.analysis && data.analysis.has_data) {
+          setTrendData(data);
+        } else if (combinedSessions.length > 0) {
+          const clientTrends = computeClientSideTrends(combinedSessions);
+          setTrendData(clientTrends);
+        } else {
+          setTrendData(data);
+        }
+      } else if (combinedSessions.length > 0) {
+        const clientTrends = computeClientSideTrends(combinedSessions);
+        setTrendData(clientTrends);
       }
     } catch (e) {
       console.warn('Backend/Firebase load error, using robust in-memory state', e);
@@ -381,6 +415,45 @@ export default function App() {
       fetchAssigned();
     }
   }, [currentUser?.id, currentUser?.role, currentUser?.caregiver_code, users.length]);
+
+  // Real-time live synchronization for Caregiver: updates dashboard immediately as patient plays
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'caregiver') return;
+
+    const patientIds = Array.from(assignedPatientIds) as string[];
+    if (patientIds.length === 0) return;
+
+    const unsubscribe = subscribeToPatientGameSessions(patientIds, (newSessions) => {
+      if (newSessions && newSessions.length > 0) {
+        for (const s of newSessions) {
+          persistGameSessionLocally(s);
+        }
+
+        // Sync to backend and refresh active patient view
+        fetch('/api/game-sessions/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessions: newSessions })
+        })
+          .then(() => {
+            if (selectedPatientId) {
+              loadPatientData(selectedPatientId);
+            }
+          })
+          .catch(() => {
+            if (selectedPatientId) {
+              const localSessions = getLocallySavedGameSessions(selectedPatientId);
+              if (localSessions.length > 0) {
+                const clientTrends = computeClientSideTrends(localSessions);
+                setTrendData(clientTrends);
+              }
+            }
+          });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [currentUser?.id, currentUser?.role, assignedPatientIds, selectedPatientId]);
 
   // Handle Login & Session Remembering
   const handleLogin = (user: User) => {
@@ -533,7 +606,7 @@ export default function App() {
     }
   };
 
-  // Handle Game Session Completion (Persisted in Firebase)
+  // Handle Game Session Completion (Persisted in Firebase & Local Cache)
   const handleGameFinish = async (sessionData: Omit<GameSession, 'id' | 'completed_at'>) => {
     setLastStars(sessionData.stars);
     setLastGameType(sessionData.game_type);
@@ -543,20 +616,34 @@ export default function App() {
       id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       completed_at: new Date().toISOString(),
     };
+
+    // 1. Immediately persist to local device cache and Firebase Firestore
+    persistGameSessionLocally(fullSession);
     saveGameSessionToFirebase(fullSession).catch(() => {});
 
+    // 2. Synchronously compute optimistic trends for instant real-time UI feedback
+    const localAll = getLocallySavedGameSessions(sessionData.user_id);
+    const sessionMap = new Map<string, GameSession>();
+    for (const s of [fullSession, ...localAll]) {
+      if (s && s.id) sessionMap.set(s.id, s);
+    }
+    const combined = Array.from(sessionMap.values());
+    const optimisticTrends = computeClientSideTrends(combined);
+    setTrendData(optimisticTrends);
+
     try {
+      // 3. Post full session to Express backend
       const res = await fetch('/api/game-sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sessionData),
+        body: JSON.stringify(fullSession),
       });
       if (res.ok) {
         const data = await res.json();
         if (data.recommendation) {
           setRecommendation(data.recommendation);
         }
-        // Refresh trends
+        // Refresh patient data in background
         loadPatientData(sessionData.user_id);
       }
     } catch (err) {

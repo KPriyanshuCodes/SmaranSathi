@@ -656,24 +656,144 @@ export async function saveFamilyMemberToFirebase(member: FamiliarPerson): Promis
 }
 
 // =========================================================================
-// 5. Game Sessions & Cognitive Tracking (User-Specific)
+// 5. Game Sessions & Cognitive Tracking (User-Specific with Offline Cache)
 // =========================================================================
 
-export async function getGameSessionsForUser(userId: string): Promise<GameSession[]> {
+export const LOCAL_SESSIONS_STORAGE_KEY = 'smritisaathi_cached_game_sessions_v1';
+
+/**
+ * Persists a game session to device local storage for immediate offline reliability.
+ */
+export function persistGameSessionLocally(session: GameSession): void {
   try {
-    const q = query(
-      collection(db, SESSIONS_COLLECTION),
-      where('user_id', '==', userId)
+    if (typeof window === 'undefined' || !session || !session.id) return;
+    const existing = getLocallySavedGameSessions();
+    const filtered = existing.filter((s) => s.id !== session.id);
+    const updated = [session, ...filtered].slice(0, 100);
+    localStorage.setItem(LOCAL_SESSIONS_STORAGE_KEY, JSON.stringify(updated));
+  } catch (e) {
+    console.warn('Could not persist game session to local cache:', e);
+  }
+}
+
+/**
+ * Retrieves game sessions from local storage, optionally filtered by user.
+ */
+export function getLocallySavedGameSessions(userId?: string): GameSession[] {
+  try {
+    if (typeof window === 'undefined') return [];
+    const raw = localStorage.getItem(LOCAL_SESSIONS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as GameSession[];
+    if (!Array.isArray(parsed)) return [];
+    
+    if (!userId) return parsed;
+    const cleanId = userId.trim().toLowerCase();
+    const cleanStripped = cleanId.replace(/^user-/, '');
+
+    // Check if user has associated patient_id or name in local profiles registry
+    const localUsers = getAllLocallySavedUsers();
+    const matchedUser = localUsers.find(
+      (u) =>
+        u.id.toLowerCase() === cleanId ||
+        (u.patient_id && u.patient_id.toLowerCase() === cleanId) ||
+        u.name.toLowerCase() === cleanId
     );
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => d.data() as GameSession);
-  } catch (error) {
-    console.warn('Error getting game sessions from Firebase:', error);
+
+    const matchingIds = new Set<string>([cleanId, cleanStripped]);
+    if (matchedUser) {
+      if (matchedUser.id) {
+        matchingIds.add(matchedUser.id.toLowerCase());
+        matchingIds.add(matchedUser.id.toLowerCase().replace(/^user-/, ''));
+      }
+      if (matchedUser.patient_id) {
+        matchingIds.add(matchedUser.patient_id.toLowerCase());
+      }
+    }
+
+    return parsed.filter((s) => {
+      if (!s || !s.user_id) return false;
+      const sId = s.user_id.trim().toLowerCase();
+      const sStripped = sId.replace(/^user-/, '');
+      return matchingIds.has(sId) || matchingIds.has(sStripped);
+    });
+  } catch (e) {
+    console.warn('Could not read local game sessions:', e);
     return [];
   }
 }
 
+export async function getGameSessionsForUser(userId: string): Promise<GameSession[]> {
+  const localSessions = getLocallySavedGameSessions(userId);
+  try {
+    const cleanId = userId.trim().toLowerCase();
+    const cleanStripped = cleanId.replace(/^user-/, '');
+
+    // Check for associated patient_id or other aliases
+    const localUsers = getAllLocallySavedUsers();
+    const matchedUser = localUsers.find(
+      (u) =>
+        u.id.toLowerCase() === cleanId ||
+        (u.patient_id && u.patient_id.toLowerCase() === cleanId) ||
+        u.name.toLowerCase() === cleanId
+    );
+
+    const matchingIds = new Set<string>([userId, cleanId, cleanStripped]);
+    if (matchedUser) {
+      if (matchedUser.id) {
+        matchingIds.add(matchedUser.id);
+        matchingIds.add(matchedUser.id.toLowerCase());
+        matchingIds.add(matchedUser.id.toLowerCase().replace(/^user-/, ''));
+      }
+      if (matchedUser.patient_id) {
+        matchingIds.add(matchedUser.patient_id);
+        matchingIds.add(matchedUser.patient_id.toLowerCase());
+      }
+    }
+
+    const sessionsRef = collection(db, SESSIONS_COLLECTION);
+    const snap = await getDocs(sessionsRef);
+    const remoteSessions: GameSession[] = [];
+
+    snap.forEach((docSnap) => {
+      const data = docSnap.data() as GameSession;
+      if (data && data.user_id) {
+        const dId = data.user_id.trim();
+        const dLower = dId.toLowerCase();
+        const dStripped = dLower.replace(/^user-/, '');
+        if (matchingIds.has(dId) || matchingIds.has(dLower) || matchingIds.has(dStripped)) {
+          remoteSessions.push(data);
+        }
+      }
+    });
+
+    // Merge remote and local sessions by ID
+    const mergedMap = new Map<string, GameSession>();
+    for (const s of [...remoteSessions, ...localSessions]) {
+      if (s && s.id) {
+        mergedMap.set(s.id, s);
+      }
+    }
+
+    const combined = Array.from(mergedMap.values());
+    combined.sort(
+      (a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime()
+    );
+
+    // Keep local cache synced with remote records
+    combined.slice(0, 50).forEach((s) => persistGameSessionLocally(s));
+
+    return combined;
+  } catch (error) {
+    console.warn('Error getting game sessions from Firebase, falling back to local:', error);
+    return localSessions;
+  }
+}
+
 export async function saveGameSessionToFirebase(session: GameSession): Promise<void> {
+  // Always save locally first for instant offline recording
+  persistGameSessionLocally(session);
+
   try {
     const ref = doc(db, SESSIONS_COLLECTION, session.id);
     await setDoc(ref, cleanForFirestore(session), { merge: true });
@@ -691,6 +811,28 @@ export function subscribeToPatientGameSessions(
   onSessionsUpdate: (sessions: GameSession[]) => void
 ): () => void {
   try {
+    const matchingIds = new Set<string>();
+    for (const pid of patientIds) {
+      if (pid) {
+        const clean = pid.trim().toLowerCase();
+        matchingIds.add(pid);
+        matchingIds.add(clean);
+        matchingIds.add(clean.replace(/^user-/, ''));
+      }
+    }
+
+    // Also include patient_id from local registry
+    const localUsers = getAllLocallySavedUsers();
+    for (const u of localUsers) {
+      const uId = u.id.toLowerCase();
+      if (matchingIds.has(uId) || matchingIds.has(uId.replace(/^user-/, ''))) {
+        if (u.patient_id) {
+          matchingIds.add(u.patient_id);
+          matchingIds.add(u.patient_id.toLowerCase());
+        }
+      }
+    }
+
     const sessionsRef = collection(db, SESSIONS_COLLECTION);
     const unsubscribe = onSnapshot(
       sessionsRef,
@@ -698,8 +840,14 @@ export function subscribeToPatientGameSessions(
         const items: GameSession[] = [];
         snapshot.forEach((docSnap) => {
           const session = docSnap.data() as GameSession;
-          if (!patientIds.length || patientIds.includes(session.user_id)) {
-            items.push(session);
+          if (session && session.user_id) {
+            const sId = session.user_id.trim();
+            const sLower = sId.toLowerCase();
+            const sStripped = sLower.replace(/^user-/, '');
+            if (!patientIds.length || matchingIds.has(sId) || matchingIds.has(sLower) || matchingIds.has(sStripped)) {
+              items.push(session);
+              persistGameSessionLocally(session);
+            }
           }
         });
 

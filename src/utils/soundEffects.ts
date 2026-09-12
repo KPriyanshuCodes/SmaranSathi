@@ -7,5 +7,11 @@ export {
   stopSpeaking,
   getGameVoicePreference,
   setGameVoicePreference,
+  isVoiceMuted,
+  setVoiceMuted,
+  toggleVoiceMute,
+  addVoiceMuteListener,
+  useVoiceMute,
   type GameVoiceMode 
 } from './speechAndAudio';
+

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Zap, Star, Trophy, Clock, Volume2, Square } from 'lucide-react';
+import { ArrowLeft, Zap, Star, Trophy, Clock, Volume2, VolumeX, Square } from 'lucide-react';
 import { RegionalLanguage, DifficultyLevel } from '../../types';
 import { 
   soundEffects, 
@@ -7,6 +7,7 @@ import {
   stopSpeaking,
   getGameVoicePreference,
   setGameVoicePreference,
+  useVoiceMute,
   GameVoiceMode
 } from '../../utils/soundEffects';
 
@@ -41,6 +42,7 @@ export const GameLevelBanner: React.FC<GameLevelBannerProps> = ({
 }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [voiceMode, setVoiceMode] = useState<GameVoiceMode>(getGameVoicePreference());
+  const { isMuted, toggleMute, setMuted } = useVoiceMute();
 
   const difficultyBadge = {
     easy: 'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -53,6 +55,11 @@ export const GameLevelBanner: React.FC<GameLevelBannerProps> = ({
       stopSpeaking();
       setIsSpeaking(false);
       return;
+    }
+
+    // If currently muted, automatically unmute when user explicitly requests voice playback
+    if (isMuted) {
+      setMuted(false);
     }
 
     soundEffects.playGentleTap();
@@ -69,13 +76,22 @@ export const GameLevelBanner: React.FC<GameLevelBannerProps> = ({
     });
   };
 
+  const handleToggleMuteBtn = () => {
+    soundEffects.playGentleTap();
+    if (isSpeaking) {
+      stopSpeaking();
+      setIsSpeaking(false);
+    }
+    toggleMute();
+  };
+
   const handleToggleVoiceMode = () => {
     soundEffects.playGentleTap();
     const newMode = voiceMode === 'hindi' ? 'regional' : 'hindi';
     setVoiceMode(newMode);
     setGameVoicePreference(newMode);
     
-    if (newMode === 'hindi') {
+    if (newMode === 'hindi' && !isMuted) {
       speakHindi('हिंदी आवाज़ सहायक सक्रिय है।');
     }
   };
@@ -134,28 +150,61 @@ export const GameLevelBanner: React.FC<GameLevelBannerProps> = ({
         </div>
 
         {/* Voice Control & Live Stats */}
-        <div className="flex items-center gap-2 shrink-0 order-2 sm:order-3">
-          {/* Dedicated Hindi Voice Button */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 order-2 sm:order-3">
+          {/* Dedicated Hindi Voice Assist Button */}
           <button
             id="hindi-voice-assist-btn"
             onClick={handleToggleVoice}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs border ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs border ${
               isSpeaking
                 ? 'bg-amber-500 text-white border-amber-600 animate-pulse ring-2 ring-amber-300'
+                : isMuted
+                ? 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-300'
                 : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
             }`}
-            title="Listen in Hindi"
+            title={isMuted ? 'Voice is Muted (Click to Unmute & Listen)' : 'Listen in Hindi'}
           >
             {isSpeaking ? (
               <>
                 <Square className="w-3.5 h-3.5 fill-current" />
                 <span>रोकें</span>
               </>
+            ) : isMuted ? (
+              <>
+                <VolumeX className="w-3.5 h-3.5 text-slate-500" />
+                <span className="hidden xs:inline">आवाज़ बंद</span>
+                <span className="xs:hidden">म्यूट</span>
+              </>
             ) : (
               <>
                 <Volume2 className="w-3.5 h-3.5 text-amber-700" />
                 <span className="hidden xs:inline">हिंदी आवाज़</span>
                 <span className="xs:hidden">हिंदी</span>
+              </>
+            )}
+          </button>
+
+          {/* Quick Mute / Unmute Toggle Button */}
+          <button
+            id="game-banner-mute-toggle-btn"
+            onClick={handleToggleMuteBtn}
+            className={`flex items-center justify-center p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs border ${
+              isMuted
+                ? 'bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-200 ring-1 ring-rose-300'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+            }`}
+            title={isMuted ? 'Voice is Muted - Click to Unmute' : 'Voice is Active - Click to Mute'}
+            aria-label={isMuted ? 'Unmute game voice' : 'Mute game voice'}
+          >
+            {isMuted ? (
+              <>
+                <VolumeX className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                <span className="hidden md:inline font-bold">Unmute</span>
+              </>
+            ) : (
+              <>
+                <Volume2 className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                <span className="hidden md:inline font-bold">Mute</span>
               </>
             )}
           </button>

@@ -8,12 +8,14 @@ import {
   Camera, 
   Edit3,
   Palette,
-  Layout
+  Layout,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { AppLogo } from './AppLogo';
 import { RegionalLanguage, User, UserRole, UIThemePalette, UILayoutMode } from '../../types';
 import { LANGUAGE_LABELS, UI_TRANSLATIONS } from '../../data/nerContent';
-import { soundEffects } from '../../utils/speechAndAudio';
+import { soundEffects, useVoiceMute } from '../../utils/speechAndAudio';
 import { FloatingSOSButton } from './FloatingSOSButton';
 import { THEME_CONFIGS } from '../../utils/themeConfig';
 
@@ -45,6 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
   const t = UI_TRANSLATIONS[currentLanguage] || UI_TRANSLATIONS.en;
   const isElderly = currentUser.role === 'elderly';
   const activeTheme = THEME_CONFIGS[themePalette] || THEME_CONFIGS.default;
+  const { isMuted, toggleMute } = useVoiceMute();
 
   return (
     <header 
@@ -86,8 +89,38 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right: Language Selector, User Profile & Actions (Clean, uncrowded layout) */}
+        {/* Right: Voice Mute Toggle, Language Selector, User Profile & Actions */}
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 ml-auto">
+          {/* Global Voice Mute Toggle Button */}
+          <button
+            id="voice-mute-toggle-btn"
+            type="button"
+            onClick={() => {
+              toggleMute();
+              soundEffects.playGentleTap();
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition-all cursor-pointer shadow-xs border-2 ${
+              isMuted
+                ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100 ring-2 ring-rose-200'
+                : 'bg-white/95 text-slate-800 border-[#47D6B6] hover:border-[#2794EB]'
+            }`}
+            title={isMuted ? 'Voice is Muted (Click to Unmute / आवाज़ चालू करें)' : 'Voice is ON (Click to Mute / आवाज़ म्यूट करें)'}
+            aria-label={isMuted ? 'Unmute voice' : 'Mute voice'}
+          >
+            {isMuted ? (
+              <>
+                <VolumeX className="w-4 h-4 text-rose-600 shrink-0" />
+                <span className="font-extrabold text-rose-700">Muted</span>
+              </>
+            ) : (
+              <>
+                <Volume2 className="w-4 h-4 text-[#2794EB] shrink-0" />
+                <span className="hidden sm:inline">Voice ON</span>
+                <span className="sm:hidden">आवाज़</span>
+              </>
+            )}
+          </button>
+
           {/* Regional Language Picker - Clear, High-Contrast, Never Overlapped */}
           <div className="relative z-30 flex items-center bg-white/95 border-2 border-[#47D6B6] hover:border-[#2794EB] px-2.5 sm:px-3 py-1.5 rounded-full text-[#1E293B] font-bold shadow-xs transition-colors shrink-0">
             <Globe className="w-4 h-4 text-[#2794EB] mr-1.5 shrink-0" />

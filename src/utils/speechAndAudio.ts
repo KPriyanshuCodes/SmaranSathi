@@ -1,3 +1,4 @@
+import React from 'react';
 import { RegionalLanguage } from '../types';
 
 class AudioService {
@@ -226,6 +227,65 @@ function findBestVoice(langCode: string): SpeechSynthesisVoice | null {
 export type GameVoiceMode = 'hindi' | 'regional';
 
 const VOICE_PREF_KEY = 'smriti_game_voice_pref';
+const VOICE_MUTE_KEY = 'smriti_voice_muted';
+
+let isVoiceMutedState = false;
+
+// Initialize mute state from localStorage safely
+if (typeof window !== 'undefined') {
+  try {
+    const storedMute = localStorage.getItem(VOICE_MUTE_KEY);
+    if (storedMute !== null) {
+      isVoiceMutedState = storedMute === 'true';
+    }
+  } catch {}
+}
+
+const muteSubscribers: Array<(muted: boolean) => void> = [];
+
+export function isVoiceMuted(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const stored = localStorage.getItem(VOICE_MUTE_KEY);
+    if (stored !== null) {
+      isVoiceMutedState = stored === 'true';
+    }
+  } catch {}
+  return isVoiceMutedState;
+}
+
+export function setVoiceMuted(muted: boolean): void {
+  isVoiceMutedState = muted;
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(VOICE_MUTE_KEY, muted ? 'true' : 'false');
+    } catch {}
+    if (muted) {
+      stopSpeaking();
+    }
+  }
+  muteSubscribers.forEach((cb) => {
+    try {
+      cb(muted);
+    } catch {}
+  });
+}
+
+export function toggleVoiceMute(): boolean {
+  const next = !isVoiceMuted();
+  setVoiceMuted(next);
+  return next;
+}
+
+export function addVoiceMuteListener(callback: (muted: boolean) => void): () => void {
+  muteSubscribers.push(callback);
+  return () => {
+    const idx = muteSubscribers.indexOf(callback);
+    if (idx !== -1) {
+      muteSubscribers.splice(idx, 1);
+    }
+  };
+}
 
 export function getGameVoicePreference(): GameVoiceMode {
   if (typeof window === 'undefined') return 'hindi';
@@ -247,6 +307,10 @@ export function setGameVoicePreference(mode: GameVoiceMode) {
  * Speaks text in Hindi with elder-friendly pacing and voice mapping
  */
 export function speakHindi(text: string, onEnd?: () => void) {
+  if (isVoiceMuted()) {
+    if (onEnd) onEnd();
+    return;
+  }
   speakText(text, 'hi', onEnd);
 }
 
@@ -258,6 +322,11 @@ export function speakText(
   lang: RegionalLanguage | string = 'hi', 
   onEnd?: () => void
 ) {
+  if (isVoiceMuted()) {
+    if (onEnd) onEnd();
+    return;
+  }
+
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
     if (onEnd) onEnd();
     return;
@@ -391,4 +460,33 @@ export function triggerReminderAudioAlarm(
     clearTimeout(timer);
     stopSpeaking();
   };
+}
+
+/**
+ * React hook for consuming and updating global voice mute state
+ */
+export function useVoiceMute(): {
+  isMuted: boolean;
+  toggleMute: () => void;
+  setMuted: (muted: boolean) => void;
+} {
+  const [muted, setMutedState] = React.useState<boolean>(isVoiceMuted());
+
+  React.useEffect(() => {
+    setMutedState(isVoiceMuted());
+    const unsub = addVoiceMuteListener((newVal) => {
+      setMutedState(newVal);
+    });
+    return unsub;
+  }, []);
+
+  const toggleMute = React.useCallback(() => {
+    toggleVoiceMute();
+  }, []);
+
+  const setMuted = React.useCallback((val: boolean) => {
+    setVoiceMuted(val);
+  }, []);
+
+  return { isMuted: muted, toggleMute, setMuted };
 }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Volume2, 
+  VolumeX,
   AlertCircle, 
   Heart, 
   CheckCircle2, 
@@ -38,7 +39,7 @@ import {
   UILayoutMode
 } from '../../types';
 import { UI_TRANSLATIONS } from '../../data/nerContent';
-import { soundEffects, speakText } from '../../utils/speechAndAudio';
+import { soundEffects, speakText, useVoiceMute } from '../../utils/speechAndAudio';
 
 interface ElderlyHomeProps {
   user: User;
@@ -81,6 +82,7 @@ export const ElderlyHome: React.FC<ElderlyHomeProps> = ({
   const [sosModalOpen, setSosModalOpen] = useState(false);
   const [sosSent, setSosSent] = useState(false);
   const [isRefreshingAI, setIsRefreshingAI] = useState(false);
+  const { isMuted, toggleMute, setMuted } = useVoiceMute();
 
   const handleRefreshAI = async () => {
     if (!onRefreshRecommendation || isRefreshingAI) return;
@@ -127,6 +129,9 @@ export const ElderlyHome: React.FC<ElderlyHomeProps> = ({
   };
 
   const handleReadGreeting = () => {
+    if (isMuted) {
+      setMuted(false);
+    }
     const greeting = `${t.welcome} ${user.name}! Smaran Sathi. Har kadam par aapka humsafar. ${t.app_subtitle}. Tap any game below to begin your joyful memory companion journey.`;
     speakText(greeting, language);
   };
@@ -346,10 +351,24 @@ export const ElderlyHome: React.FC<ElderlyHomeProps> = ({
         <button
           id="elderly-welcome-voice"
           onClick={handleReadGreeting}
-          className="min-h-[56px] px-6 py-3 rounded-2xl bg-[#2794EB] hover:bg-[#17B3C1] text-white font-extrabold text-base md:text-lg flex items-center justify-center gap-3 shadow-md active:translate-y-1 transition-all border-2 border-[#47D6B6] shrink-0 cursor-pointer"
+          className={`min-h-[56px] px-6 py-3 rounded-2xl font-extrabold text-base md:text-lg flex items-center justify-center gap-3 shadow-md active:translate-y-1 transition-all border-2 shrink-0 cursor-pointer ${
+            isMuted 
+              ? 'bg-white/95 text-rose-800 border-rose-300 hover:bg-white' 
+              : 'bg-[#2794EB] hover:bg-[#17B3C1] text-white border-[#47D6B6]'
+          }`}
+          title={isMuted ? 'Voice is Muted (Click to Unmute & Listen)' : 'Listen to Voice Welcome'}
         >
-          <Volume2 className="w-6 h-6 text-[#47D6B6]" />
-          <span>{t.voice_guide}</span>
+          {isMuted ? (
+            <>
+              <VolumeX className="w-6 h-6 text-rose-600" />
+              <span>{t.voice_guide} (Muted)</span>
+            </>
+          ) : (
+            <>
+              <Volume2 className="w-6 h-6 text-[#47D6B6]" />
+              <span>{t.voice_guide}</span>
+            </>
+          )}
         </button>
       </div>
 

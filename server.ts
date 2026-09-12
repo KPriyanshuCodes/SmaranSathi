@@ -173,24 +173,63 @@ function saveGameSessionsToDisk(sessionsList: GameSession[]): void {
 let gameSessions: GameSession[] = loadGameSessionsFromDisk();
 
 function getMatchingUserIds(targetId: string): Set<string> {
-  const ids = new Set<string>([targetId]);
+  const ids = new Set<string>();
+  if (!targetId) return ids;
+
   const trimmed = targetId.trim();
-  const matchedUser = users.find(
-    u => u.id === trimmed || 
-         u.patient_id === trimmed || 
-         (u.name && u.name.toLowerCase() === trimmed.toLowerCase())
+  const lower = trimmed.toLowerCase();
+  ids.add(trimmed);
+  ids.add(lower);
+  ids.add(lower.replace(/^user-/, ''));
+
+  const matchedUsers = users.filter(
+    u => (u.id && (u.id === trimmed || u.id.toLowerCase() === lower || u.id.toLowerCase().replace(/^user-/, '') === lower.replace(/^user-/, ''))) ||
+         (u.patient_id && (u.patient_id === trimmed || u.patient_id.toLowerCase() === lower)) ||
+         (u.name && u.name.toLowerCase() === lower) ||
+         (u.phone && (u.phone === trimmed || u.phone.toLowerCase() === lower))
   );
-  if (matchedUser) {
-    if (matchedUser.id) ids.add(matchedUser.id);
-    if (matchedUser.patient_id) ids.add(matchedUser.patient_id);
+
+  for (const matchedUser of matchedUsers) {
+    if (matchedUser.id) {
+      ids.add(matchedUser.id);
+      ids.add(matchedUser.id.toLowerCase());
+      ids.add(matchedUser.id.toLowerCase().replace(/^user-/, ''));
+    }
+    if (matchedUser.patient_id) {
+      ids.add(matchedUser.patient_id);
+      ids.add(matchedUser.patient_id.toLowerCase());
+    }
+    if (matchedUser.name) {
+      ids.add(matchedUser.name);
+      ids.add(matchedUser.name.toLowerCase());
+    }
+    if (matchedUser.phone) {
+      ids.add(matchedUser.phone);
+    }
   }
+
   return ids;
 }
 
 function getUserSessions(targetId: string): GameSession[] {
+  if (!targetId) return [];
   const ids = getMatchingUserIds(targetId);
+  const targetLower = targetId.trim().toLowerCase();
+  const targetStripped = targetLower.replace(/^user-/, '');
+
   return gameSessions
-    .filter(s => ids.has(s.user_id) || ids.has(s.user_id.replace(/^user-/, '')))
+    .filter(s => {
+      if (!s || !s.user_id) return false;
+      const sUserId = s.user_id.trim();
+      const sLower = sUserId.toLowerCase();
+      const sStripped = sLower.replace(/^user-/, '');
+
+      return ids.has(sUserId) || 
+             ids.has(sLower) || 
+             ids.has(sStripped) ||
+             sLower === targetLower ||
+             sStripped === targetStripped;
+    })
     .sort((a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime());
 }
 
@@ -1224,6 +1263,7 @@ app.post('/api/caregivers/unlink', (req: Request, res: Response) => {
 // Log a game session
 app.post('/api/game-sessions', async (req: Request, res: Response) => {
   const { 
+    id,
     user_id, 
     game_type, 
     accuracy, 
@@ -1232,7 +1272,9 @@ app.post('/api/game-sessions', async (req: Request, res: Response) => {
     mistakes, 
     completion_rate, 
     difficulty_level,
-    stars 
+    level_number,
+    stars,
+    completed_at 
   } = req.body;
 
   if (!user_id || !game_type) {
@@ -1240,9 +1282,10 @@ app.post('/api/game-sessions', async (req: Request, res: Response) => {
   }
 
   const newSession: GameSession = {
-    id: `sess-${Date.now()}`,
-    user_id,
+    id: id || `sess-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+    user_id: String(user_id).trim(),
     game_type,
+    level_number: Number(level_number) || 1,
     accuracy: Math.round(Number(accuracy) || 0),
     response_time: Number(response_time) || 0,
     attempts: Number(attempts) || 1,
@@ -1250,10 +1293,15 @@ app.post('/api/game-sessions', async (req: Request, res: Response) => {
     completion_rate: Number(completion_rate) || 100,
     difficulty_level: difficulty_level || 'easy',
     stars: Number(stars) || 3,
-    completed_at: new Date().toISOString()
+    completed_at: completed_at || new Date().toISOString()
   };
 
-  gameSessions.push(newSession);
+  const existingIdx = gameSessions.findIndex(s => s.id === newSession.id);
+  if (existingIdx >= 0) {
+    gameSessions[existingIdx] = newSession;
+  } else {
+    gameSessions.push(newSession);
+  }
   saveGameSessionsToDisk(gameSessions);
 
   // Invalidate recommendation cache and generate updated Gemini AI recommendation
