@@ -242,6 +242,57 @@ if (typeof window !== 'undefined') {
 }
 
 const muteSubscribers: Array<(muted: boolean) => void> = [];
+const speakingSubscribers: Array<(speaking: boolean) => void> = [];
+let isGloballySpeaking = false;
+
+function notifySpeakingSubscribers(speaking: boolean) {
+  isGloballySpeaking = speaking;
+  speakingSubscribers.forEach((cb) => {
+    try {
+      cb(speaking);
+    } catch {}
+  });
+}
+
+export function isCurrentlySpeaking(): boolean {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return false;
+  return isGloballySpeaking || window.speechSynthesis.speaking;
+}
+
+export function addSpeakingListener(callback: (speaking: boolean) => void): () => void {
+  speakingSubscribers.push(callback);
+  return () => {
+    const idx = speakingSubscribers.indexOf(callback);
+    if (idx !== -1) {
+      speakingSubscribers.splice(idx, 1);
+    }
+  };
+}
+
+export function useSpeakingState(): boolean {
+  const [speaking, setSpeaking] = React.useState<boolean>(isCurrentlySpeaking());
+
+  React.useEffect(() => {
+    setSpeaking(isCurrentlySpeaking());
+    const unsub = addSpeakingListener((newVal) => {
+      setSpeaking(newVal);
+    });
+
+    const interval = setInterval(() => {
+      const active = isCurrentlySpeaking();
+      if (active !== isGloballySpeaking) {
+        notifySpeakingSubscribers(active);
+      }
+    }, 400);
+
+    return () => {
+      unsub();
+      clearInterval(interval);
+    };
+  }, []);
+
+  return speaking;
+}
 
 export function isVoiceMuted(): boolean {
   if (typeof window === 'undefined') return false;
@@ -358,13 +409,23 @@ export function speakText(
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
 
-    if (onEnd) {
-      utterance.onend = () => onEnd();
-      utterance.onerror = () => onEnd();
-    }
+    utterance.onstart = () => {
+      notifySpeakingSubscribers(true);
+    };
 
+    utterance.onend = () => {
+      notifySpeakingSubscribers(false);
+      if (onEnd) onEnd();
+    };
+    utterance.onerror = () => {
+      notifySpeakingSubscribers(false);
+      if (onEnd) onEnd();
+    };
+
+    notifySpeakingSubscribers(true);
     window.speechSynthesis.speak(utterance);
   } catch {
+    notifySpeakingSubscribers(false);
     if (onEnd) onEnd();
   }
 }
@@ -394,8 +455,11 @@ export function speakGamePrompt(
 }
 
 export function stopSpeaking() {
+  notifySpeakingSubscribers(false);
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
+    try {
+      window.speechSynthesis.cancel();
+    } catch {}
   }
 }
 

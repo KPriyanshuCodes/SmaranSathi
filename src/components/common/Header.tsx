@@ -116,7 +116,7 @@ export const Header: React.FC<HeaderProps> = ({
               <>
                 <Volume2 className="w-4 h-4 text-[#2794EB] shrink-0" />
                 <span className="hidden sm:inline">Voice ON</span>
-                <span className="sm:hidden">आवाज़</span>
+                <span className="sm:hidden">ON</span>
               </>
             )}
           </button>

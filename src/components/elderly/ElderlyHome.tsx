@@ -132,6 +132,7 @@ export const ElderlyHome: React.FC<ElderlyHomeProps> = ({
     if (isMuted) {
       setMuted(false);
     }
+    soundEffects.playGentleTap();
     const greeting = `${t.welcome} ${user.name}! Smaran Sathi. Har kadam par aapka humsafar. ${t.app_subtitle}. Tap any game below to begin your joyful memory companion journey.`;
     speakText(greeting, language);
   };
