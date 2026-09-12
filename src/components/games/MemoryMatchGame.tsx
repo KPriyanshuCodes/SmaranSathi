@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Volume2, RefreshCw, ArrowLeft, CheckCircle2, HelpCircle } from 'lucide-react';
 import { CulturalItem, DifficultyLevel, RegionalLanguage, GameSession, LevelFinishResult } from '../../types';
 import { CULTURAL_ITEMS, UI_TRANSLATIONS } from '../../data/nerContent';
-import { soundEffects, speakText } from '../../utils/speechAndAudio';
+import { soundEffects, speakText, speakHindi, speakGameCheerHindi } from '../../utils/speechAndAudio';
 import { getLevelConfig, MemoryMatchLevelConfig } from '../../data/gameLevels';
 import { GameLevelBanner } from './GameLevelBanner';
 
@@ -114,14 +114,20 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
     setupGame();
   }, [level, propDifficulty]);
 
-  // Voice instruction on mount
+  // Voice instruction in Hindi and current language on mount
   useEffect(() => {
     if (!voiceInstructionGiven) {
-      const prompt = `${t.memory_match}. ${t.memory_match_desc}`;
-      speakText(prompt, language);
+      const hindiPrompt = `स्मृति कार्ड मिलान स्तर ${level}। पूर्वोत्तर के सुंदर प्रतीकों के जोड़े खोजें।`;
+      speakHindi(hindiPrompt);
       setVoiceInstructionGiven(true);
     }
-  }, [language, voiceInstructionGiven, t]);
+  }, [level, voiceInstructionGiven]);
+
+  const handleVoiceGuide = () => {
+    soundEffects.playGentleTap();
+    const hindiPrompt = `स्मृति कार्ड मिलान खेल में कार्ड पर टैप करके एक जैसे दो चित्र खोजें। कुल ${totalPairs} जोड़े मिलाने हैं।`;
+    speakHindi(hindiPrompt);
+  };
 
   // Handle card tap
   const handleCardClick = (card: MemoryCard) => {
@@ -147,7 +153,8 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       if (first.itemId === second.itemId) {
         // MATCH!
         soundEffects.playSuccessChime();
-        speakText(first.item.name[language] || first.item.name.en, language);
+        const itemNameHindi = first.item.name.hi || first.item.name.en;
+        speakHindi(`बहुत बढ़िया! ${itemNameHindi} का जोड़ा मिल गया!`);
 
         setTimeout(() => {
           setCards((prev) =>
@@ -162,9 +169,10 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
 
           if (nextCount >= totalPairs && !gameEndedRef.current) {
             gameEndedRef.current = true;
+            speakGameCheerHindi('win');
             setTimeout(() => {
               finishGame(newAttempts, mistakes, nextCount, totalPairs);
-            }, 300);
+            }, 500);
           }
         }, 600);
       } else {
@@ -227,17 +235,16 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         accuracy,
         attempts: finalAttempts,
         mistakes: finalMistakes,
-        completionRate: Math.round((matchedCount / pairsCount) * 100),
+        completionRate: 100,
         winConditionMet: won
-          ? `Matched all ${pairsCount} pairs in ${finalAttempts} attempts (Max allowed: ${levelConfig.maxAttempts}).`
+          ? `Matched all ${pairsCount} pairs in ${finalAttempts} tries (Limit: ${levelConfig.maxAttempts}).`
           : undefined,
         failReason: !won
-          ? `Used ${finalAttempts} attempts (Target was within ${levelConfig.maxAttempts} attempts). Take a gentle breath and try again!`
+          ? `Used ${finalAttempts} tries (Limit: ${levelConfig.maxAttempts}). Let's practice once more!`
           : undefined,
       });
     }
 
-    // Call standard onFinish for patient telemetry and caregiver analytics
     onFinish({
       user_id: userId,
       game_type: 'memory_match',
@@ -246,7 +253,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       response_time: avgResponseTime,
       attempts: finalAttempts,
       mistakes: finalMistakes,
-      completion_rate: Math.round((matchedCount / pairsCount) * 100),
+      completion_rate: 100,
       difficulty_level: activeDifficulty,
       stars: Math.max(1, stars),
     });
@@ -254,13 +261,14 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-4">
-      {/* Universal Level Banner */}
+      {/* Universal Level Banner with Hindi Voice */}
       <GameLevelBanner
         level={level}
         totalLevels={10}
         difficulty={activeDifficulty}
         levelTitle={levelConfig.title[language] || levelConfig.title.en}
         winConditionText={levelConfig.winConditionText[language] || levelConfig.winConditionText.en}
+        hindiVoicePrompt={`स्मृति कार्ड मिलान स्तर ${level}। ${totalPairs} जोड़ों को ${levelConfig.maxAttempts} से कम प्रयासों में मिलाएं।`}
         onExitToLevelSelect={onExitToLevelSelect || onBack}
         attempts={attempts}
         maxAttempts={levelConfig.maxAttempts}
@@ -268,7 +276,7 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
       />
 
       {/* Game Header with Navigation & Controls */}
-      <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-[28px] border-2 border-slate-200 shadow-xs">
+      <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-[28px] border-2 border-slate-200 shadow-xs flex-wrap gap-2">
         <button
           id="game-back-home"
           onClick={onBack}
@@ -288,13 +296,15 @@ export const MemoryMatchGame: React.FC<MemoryMatchGameProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Hindi Voice Narration Button */}
           <button
-            id="game-voice-instruct"
-            onClick={() => speakText(`${t.memory_match}. ${t.memory_match_desc}`, language)}
-            className="min-h-[48px] min-w-[48px] flex items-center justify-center p-2.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black shadow-xs active:translate-y-0.5 transition-all cursor-pointer"
-            title="Read instructions aloud"
+            id="game-voice-instruct-hindi"
+            onClick={handleVoiceGuide}
+            className="min-h-[48px] px-3.5 py-2 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-black shadow-xs active:translate-y-0.5 transition-all cursor-pointer flex items-center gap-1.5 text-xs sm:text-sm"
+            title="Listen in Hindi"
           >
             <Volume2 className="w-5 h-5 text-white" />
+            <span className="hidden sm:inline">हिंदी आवाज़</span>
           </button>
           <button
             id="game-restart"

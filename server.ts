@@ -135,7 +135,7 @@ interface CaregiverLink {
   relation: string;
 }
 
-const users: User[] = loadUsersFromDisk();
+let users: User[] = loadUsersFromDisk();
 const caregiverLinks: CaregiverLink[] = [];
 
 // Clean initial sessions (populated genuinely through gameplay)
@@ -348,6 +348,11 @@ function analyzePatientGamingPerformance(userId: string): PatientGamingAnalysis 
       domain: 'Facial & Loved Ones Familiarity',
       title: 'Familiar Face Match',
       desc: 'Emotional orientation and visual identification of primary caregivers & family.'
+    },
+    simple_calculation: {
+      domain: 'Numerical Cognition & Working Memory',
+      title: 'Simple Math & Calculation',
+      desc: 'Numerical working memory, arithmetic fluency, and mental calculation agility.'
     }
   };
 
@@ -611,7 +616,8 @@ function computeAIRecommendation(userId: string): AIRecommendation {
     sequence_recall: 'Traditional Melody & Rhythm Recall',
     picture_recognition: 'Northeast Heritage & Wildlife Recognition',
     simple_puzzle: 'Heritage Craft & Landscape Puzzle',
-    face_match: 'Familiar Faces & Loved Ones Match'
+    face_match: 'Familiar Faces & Loved Ones Match',
+    simple_calculation: 'Simple Math & Northeast Counting'
   };
 
   const domainNames: Record<GameType, string> = {
@@ -619,7 +625,8 @@ function computeAIRecommendation(userId: string): AIRecommendation {
     sequence_recall: 'Working Memory, Attention & Sequential Recall',
     picture_recognition: 'Semantic Memory & Visual Categorization',
     simple_puzzle: 'Visuospatial Reasoning & Coordination',
-    face_match: 'Social-Emotional & Facial Recognition'
+    face_match: 'Social-Emotional & Facial Recognition',
+    simple_calculation: 'Numerical Cognition & Working Memory'
   };
 
   if (!analysis.has_data) {

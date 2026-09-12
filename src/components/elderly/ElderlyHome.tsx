@@ -26,7 +26,8 @@ import {
   Palette,
   Layout,
   Moon,
-  Sun
+  Sun,
+  Calculator
 } from 'lucide-react';
 import { 
   User, 
@@ -202,6 +203,18 @@ export const ElderlyHome: React.FC<ElderlyHomeProps> = ({
       textStyle: 'text-[#1E293B]',
       borderDivider: 'border-slate-200 text-[#2794EB]',
       badge: recommendation?.next_game_type === 'face_match' ? 'Recommended' : undefined,
+    },
+    {
+      type: 'simple_calculation',
+      title: t.simple_calculation,
+      description: t.simple_calculation_desc,
+      domain: 'Numerical Reasoning & Working Memory',
+      icon: <Calculator className="w-9 h-9 text-[#2794EB]" />,
+      cardStyle: 'bg-[#FAFAFA] border-2 border-[#47D6B6] shadow-sm hover:border-[#47D6B6] hover:shadow-md hover:translate-y-0.5 active:translate-y-1',
+      iconBg: 'bg-white border border-[#47D6B6]',
+      textStyle: 'text-[#1E293B]',
+      borderDivider: 'border-slate-200 text-[#2794EB]',
+      badge: recommendation?.next_game_type === 'simple_calculation' ? 'Recommended' : undefined,
     },
   ];
 

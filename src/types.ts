@@ -113,7 +113,8 @@ export type GameType =
   | 'sequence_recall' 
   | 'picture_recognition' 
   | 'simple_puzzle' 
-  | 'face_match';
+  | 'face_match'
+  | 'simple_calculation';
 
 export type DifficultyLevel = 'easy' | 'medium' | 'hard';
 

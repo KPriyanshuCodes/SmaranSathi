@@ -25,6 +25,7 @@ import { SequenceRecallGame } from './components/games/SequenceRecallGame';
 import { PictureRecognitionGame } from './components/games/PictureRecognitionGame';
 import { SimplePuzzleGame } from './components/games/SimplePuzzleGame';
 import { FaceMatchGame } from './components/games/FaceMatchGame';
+import { SimpleCalculationGame } from './components/games/SimpleCalculationGame';
 import { GameLevelSelectScreen } from './components/games/GameLevelSelectScreen';
 import { LevelCompleteModal } from './components/games/LevelCompleteModal';
 import { GameFeedbackModal } from './components/games/GameFeedbackModal';
@@ -1011,6 +1012,17 @@ export default function App() {
               />
             ) : activeGame === 'simple_puzzle' ? (
               <SimplePuzzleGame
+                level={selectedLevel}
+                difficulty={recommendation?.recommended_difficulty || 'easy'}
+                language={currentLanguage}
+                userId={currentUser.id}
+                onFinish={handleGameFinish}
+                onFinishLevel={handleLevelFinish}
+                onExitToLevelSelect={() => setSelectedLevel(null)}
+                onBack={() => setSelectedLevel(null)}
+              />
+            ) : activeGame === 'simple_calculation' ? (
+              <SimpleCalculationGame
                 level={selectedLevel}
                 difficulty={recommendation?.recommended_difficulty || 'easy'}
                 language={currentLanguage}

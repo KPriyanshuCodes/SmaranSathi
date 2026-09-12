@@ -1,10 +1,49 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, ArrowLeft, Heart, CheckCircle2, RefreshCw, Clock } from 'lucide-react';
-import { DifficultyLevel, RegionalLanguage, GameSession, FamiliarPerson, LevelFinishResult } from '../../types';
+import { Volume2, RefreshCw, ArrowLeft, Heart, CheckCircle2, Clock } from 'lucide-react';
+import { FamiliarPerson, DifficultyLevel, RegionalLanguage, GameSession, LevelFinishResult } from '../../types';
 import { UI_TRANSLATIONS } from '../../data/nerContent';
-import { soundEffects, speakText } from '../../utils/speechAndAudio';
+import { soundEffects, speakHindi, speakGameCheerHindi } from '../../utils/speechAndAudio';
 import { getLevelConfig, FaceMatchLevelConfig } from '../../data/gameLevels';
 import { GameLevelBanner } from './GameLevelBanner';
+
+const DEMO_FAMILY_MEMBERS: FamiliarPerson[] = [
+  {
+    id: 'demo-1',
+    user_id: 'demo',
+    name: 'Priyanka Borah',
+    relation: 'Daughter (বেটী / बेटी)',
+    photo_url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&auto=format&fit=crop&q=80',
+    notes: 'Lives in Guwahati, visits on Sundays with sweets',
+    voice_prompt: 'नमस्ते माँ, मैं प्रियंका हूँ!',
+  },
+  {
+    id: 'demo-2',
+    user_id: 'demo',
+    name: 'Rahul Sharma',
+    relation: 'Grandson (নাতি / पोता)',
+    photo_url: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80',
+    notes: 'Loves playing cricket and eating pitha',
+    voice_prompt: 'दादाजी, प्रणाम!',
+  },
+  {
+    id: 'demo-3',
+    user_id: 'demo',
+    name: 'Ananya Phukan',
+    relation: 'Doctor & Niece (ডাক্তাৰ / भतीजी)',
+    photo_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80',
+    notes: 'Calls every evening to check on medicine',
+    voice_prompt: 'चाचाजी, दवाई समय पर ले लीजियेगा।',
+  },
+  {
+    id: 'demo-4',
+    user_id: 'demo',
+    name: 'Devraj Saikia',
+    relation: 'Son (ল’ৰা / बेटा)',
+    photo_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80',
+    notes: 'Brings morning fresh tea leaves and newspapers',
+    voice_prompt: 'पिताजी, सुबह की चाय तैयार है।',
+  },
+];
 
 interface FaceMatchGameProps {
   difficulty?: DifficultyLevel;
@@ -17,41 +56,6 @@ interface FaceMatchGameProps {
   onBack: () => void;
   onExitToLevelSelect?: () => void;
 }
-
-const DEMO_FAMILY_MEMBERS: FamiliarPerson[] = [
-  {
-    id: 'fam-demo-1',
-    user_id: 'demo',
-    name: 'Priya Barua',
-    relation: 'Granddaughter',
-    photo_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-    notes: 'Loves bringing warm Assam tea every afternoon',
-  },
-  {
-    id: 'fam-demo-2',
-    user_id: 'demo',
-    name: 'Rohan Barua',
-    relation: 'Son',
-    photo_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-    notes: 'Calls every evening after work from Guwahati',
-  },
-  {
-    id: 'fam-demo-3',
-    user_id: 'demo',
-    name: 'Ananya Sharma',
-    relation: 'Niece',
-    photo_url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
-    notes: 'Always plays Bihu tunes on the flute for you',
-  },
-  {
-    id: 'fam-demo-4',
-    user_id: 'demo',
-    name: 'Deep Saikia',
-    relation: 'Grandson',
-    photo_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
-    notes: 'Helps water the potted tulsi plant every weekend',
-  },
-];
 
 export const FaceMatchGame: React.FC<FaceMatchGameProps> = ({
   difficulty: propDifficulty = 'easy',
@@ -136,6 +140,7 @@ export const FaceMatchGame: React.FC<FaceMatchGameProps> = ({
     soundEffects.playGentleEncouragement();
     setMistakes((prev) => prev + 1);
     setAttempts((prev) => prev + 1);
+    speakHindi('समय पूरा हुआ! आइए अगला चेहरा देखें।');
     advance(correctCount);
   };
 
@@ -153,9 +158,17 @@ export const FaceMatchGame: React.FC<FaceMatchGameProps> = ({
 
   useEffect(() => {
     if (currentPerson) {
-      speakText(`Do you recognize this smiling family member?`, language);
+      const prompt = `प्रियजनों की पहचान स्तर ${level}। क्या आप अपने इस प्रियजन को पहचान सकते हैं?`;
+      speakHindi(prompt);
     }
-  }, [currentIndex, currentPerson, language]);
+  }, [currentIndex, currentPerson, level]);
+
+  const handleVoiceGuide = () => {
+    if (!currentPerson) return;
+    soundEffects.playGentleTap();
+    const hindiPrompt = `तस्वीर में मुस्कुराते चेहरे को देखें। नीचे दिए गए नामों में से सही व्यक्ति का नाम चुनें।`;
+    speakHindi(hindiPrompt);
+  };
 
   const handleOptionClick = (person: FamiliarPerson) => {
     if (selectedPersonId !== null) return;
@@ -169,8 +182,8 @@ export const FaceMatchGame: React.FC<FaceMatchGameProps> = ({
 
     if (correct) {
       soundEffects.playSuccessChime();
-      const message = `${person.name}, your dear ${person.relation}!`;
-      speakText(message, language);
+      const message = `बहुत सुंदर! यह ${person.name} हैं, आपके प्यारे ${person.relation}!`;
+      speakHindi(message);
       const newCorrect = correctCount + 1;
       setCorrectCount(newCorrect);
 
@@ -181,7 +194,7 @@ export const FaceMatchGame: React.FC<FaceMatchGameProps> = ({
       soundEffects.playGentleEncouragement();
       const newMistakes = mistakes + 1;
       setMistakes(newMistakes);
-      speakText('Take another gentle look at their kind smile.', language);
+      speakHindi('उनकी प्यारी मुस्कान को एक बार और ध्यान से देखें।');
 
       setTimeout(() => {
         advance(correctCount);
@@ -197,9 +210,10 @@ export const FaceMatchGame: React.FC<FaceMatchGameProps> = ({
     } else {
       if (!gameEndedRef.current) {
         gameEndedRef.current = true;
+        speakGameCheerHindi('win');
         setTimeout(() => {
           finishGame(attempts + 1, mistakes, finalCorrect, totalRounds);
-        }, 300);
+        }, 400);
       }
     }
   };
@@ -273,20 +287,21 @@ export const FaceMatchGame: React.FC<FaceMatchGameProps> = ({
 
   return (
     <div className="w-full max-w-2xl mx-auto space-y-4">
-      {/* Universal Level Banner */}
+      {/* Universal Level Banner with Hindi Voice */}
       <GameLevelBanner
         level={level}
         totalLevels={10}
         difficulty={activeDifficulty}
         levelTitle={levelConfig.title[language] || levelConfig.title.en}
         winConditionText={levelConfig.winConditionText[language] || levelConfig.winConditionText.en}
+        hindiVoicePrompt={`प्रियजनों की पहचान स्तर ${level}। ${totalRounds} में से कम से कम ${levelConfig.minCorrectToPass} प्रियजनों को पहचानें।`}
         onExitToLevelSelect={onExitToLevelSelect || onBack}
         attempts={attempts}
         timeSec={elapsedSec}
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-[28px] border-2 border-slate-200 shadow-xs">
+      <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-[28px] border-2 border-slate-200 shadow-xs flex-wrap gap-2">
         <button
           onClick={onBack}
           className="min-h-[48px] min-w-[48px] flex items-center justify-center p-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition-transform active:scale-95 cursor-pointer"
@@ -313,13 +328,16 @@ export const FaceMatchGame: React.FC<FaceMatchGameProps> = ({
             </div>
           )}
 
+          {/* Hindi Voice Guide */}
           <button
-            onClick={() => speakText(`Who is this smiling face in your family?`, language)}
-            className="min-h-[48px] min-w-[48px] flex items-center justify-center p-2.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black shadow-xs active:translate-y-0.5 transition-all cursor-pointer"
-            title="Read instructions"
+            onClick={handleVoiceGuide}
+            className="min-h-[48px] px-3.5 py-2 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-black shadow-xs active:translate-y-0.5 transition-all cursor-pointer flex items-center gap-1.5 text-xs sm:text-sm"
+            title="Listen in Hindi"
           >
             <Volume2 className="w-5 h-5 text-white" />
+            <span className="hidden sm:inline">हिंदी आवाज़</span>
           </button>
+
           <button
             onClick={() => {
               setCurrentIndex(0);
@@ -354,10 +372,10 @@ export const FaceMatchGame: React.FC<FaceMatchGameProps> = ({
 
         <div className="space-y-0.5">
           <h3 className="text-lg sm:text-xl font-black text-slate-900">
-            Who is this familiar loved one?
+            यह आपके परिवार के कौन से सदस्य हैं?
           </h3>
           <p className="text-slate-500 font-bold text-xs sm:text-sm">
-            Tap their name below to connect
+            पहचानने के लिए नीचे सही नाम पर टैप करें
           </p>
         </div>
 
@@ -384,16 +402,17 @@ export const FaceMatchGame: React.FC<FaceMatchGameProps> = ({
                 id={`face-opt-${opt.id}`}
                 onClick={() => handleOptionClick(opt)}
                 disabled={selectedPersonId !== null}
-                className={`min-h-[58px] px-5 py-3 rounded-2xl text-base font-bold flex items-center justify-between transition-all duration-200 active:scale-98 ${btnClass}`}
+                className={`min-h-[64px] p-4 rounded-2xl flex items-center justify-between text-left transition-all duration-200 ${btnClass}`}
               >
-                <div className="flex flex-col text-left">
-                  <span className="text-base sm:text-lg font-black text-slate-900">
+                <div>
+                  <span className="text-base sm:text-lg font-black block leading-tight">
                     {opt.name}
                   </span>
-                  <span className="text-xs text-slate-500 font-bold">
+                  <span className="text-xs sm:text-sm text-slate-500 font-medium">
                     {opt.relation}
                   </span>
                 </div>
+
                 {selectedPersonId !== null && isTarget && (
                   <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
                 )}
@@ -401,14 +420,6 @@ export const FaceMatchGame: React.FC<FaceMatchGameProps> = ({
             );
           })}
         </div>
-
-        {/* Warm Note / Memory Cue */}
-        {selectedPersonId && isCorrect && currentPerson.notes && (
-          <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-950 text-xs sm:text-sm leading-relaxed flex items-center gap-2.5 font-medium text-left">
-            <Heart className="w-5 h-5 text-rose-500 shrink-0 fill-current" />
-            <span>{currentPerson.notes}</span>
-          </div>
-        )}
       </div>
     </div>
   );

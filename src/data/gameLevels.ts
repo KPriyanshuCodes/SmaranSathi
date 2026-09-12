@@ -46,6 +46,16 @@ export interface FaceMatchLevelConfig extends BaseLevelConfig {
   mode: 'recognize_name' | 'recognize_relation' | 'mixed';
 }
 
+export interface SimpleCalculationLevelConfig extends BaseLevelConfig {
+  questionsCount: number;
+  mode: 'visual_count' | 'addition' | 'subtraction' | 'comparison' | 'mixed';
+  maxNumber: number;
+  optionsCount: number;
+  minCorrectToPass: number;
+  timePerQuestionSec?: number;
+  allowHints?: boolean;
+}
+
 export const MEMORY_MATCH_LEVELS: MemoryMatchLevelConfig[] = [
   {
     level: 1,
@@ -1559,6 +1569,333 @@ export const FACE_MATCH_LEVELS: FaceMatchLevelConfig[] = [
   },
 ];
 
+export const SIMPLE_CALCULATION_LEVELS: SimpleCalculationLevelConfig[] = [
+  {
+    level: 1,
+    difficulty: 'easy',
+    title: {
+      en: 'Counting Northeast Treasures',
+      as: 'আপোন সম্পদ গণনা',
+      kha: 'Kheiñ Jingkord Tynrai',
+      mni: 'মশীক থিবা',
+      hi: 'पूर्वोत्तर धरोहर गिनती',
+    },
+    description: {
+      en: 'Count 1 to 5 familiar items like Assam tea cups and fresh lemons.',
+      as: '১ ৰ পৰা ৫ লৈ কাজিনেমু আৰু চাহৰ কাপ গণনা কৰক।',
+      kha: 'Kheiñ 1 haduh 5 tylli ki sohjew bad sha.',
+      mni: 'চম্প্রা অমসুং চা কাপ ১ দগী ৫ ফাওবা থিদোকউ।',
+      hi: '1 से 5 तक चाय के कप और ताजे नींबू गिनें।',
+    },
+    winConditionText: {
+      en: 'Answer 3 gentle counting questions correctly',
+      as: '৩ টা গণনাৰ শুদ্ধ উত্তৰ দিয়ক',
+      kha: 'Jubab bha 3 tylli ki jingkylli',
+      mni: '৩ চুম্না মশীক থিদোকউ',
+      hi: '3 सरल गिनती के सही उत्तर दें',
+    },
+    questionsCount: 3,
+    mode: 'visual_count',
+    maxNumber: 5,
+    optionsCount: 3,
+    minCorrectToPass: 2,
+    allowHints: true,
+    pointsBase: 100,
+  },
+  {
+    level: 2,
+    difficulty: 'easy',
+    title: {
+      en: 'Gentle Addition (1 to 6)',
+      as: 'সহজ যোগফল (১ ৰ পৰা ৬)',
+      kha: 'Kheiñ Lang ba Jem (1-6)',
+      mni: 'লাইবা পুনশিনবা (১-৬)',
+      hi: 'सरल जोड़ (1 से 6)',
+    },
+    description: {
+      en: 'Add two small groups of items together (e.g. 2 lemons + 1 lemon).',
+      as: 'দুটা সৰু বস্তুৰ গোট একেলগে যোগ কৰক (যেনে ২ কাজিনেমু + ১ কাজিনেমু)।',
+      kha: 'Kheiñ lang 2 tylli ki kynhun barit.',
+      mni: 'মচাক অনী পুনশিন্দুনা মশীক পুথোকউ।',
+      hi: 'वस्तुओं के दो छोटे समूहों को आपस में जोड़ें।',
+    },
+    winConditionText: {
+      en: 'Solve at least 3 out of 4 visual additions',
+      as: '৪ টাৰ ভিতৰত কমেও ৩ টা শুদ্ধ যোগ কৰক',
+      kha: 'Kheiñ biang 3 na ka 4',
+      mni: '৪ গী মনুংদা ৩ চুম্না পুনশিল্লু',
+      hi: '4 में से कम से कम 3 सही जोड़ हल करें',
+    },
+    questionsCount: 4,
+    mode: 'addition',
+    maxNumber: 6,
+    optionsCount: 3,
+    minCorrectToPass: 3,
+    allowHints: true,
+    pointsBase: 120,
+  },
+  {
+    level: 3,
+    difficulty: 'easy',
+    title: {
+      en: 'Harvest Count (Up to 10)',
+      as: 'পথাৰৰ শস্য গণনা (১০ লৈ)',
+      kha: 'Ka Kheiñ Otba (10)',
+      mni: 'লৌউ-শিংউগী মশীক (১০)',
+      hi: 'फसल की गिनती (10 तक)',
+    },
+    description: {
+      en: 'Count and add fresh mandarins, clay diyas, and Bihu pithas up to 10.',
+      as: 'কমলা, চাকি আৰু বিহু পিঠা ১০ লৈ গণনা কৰি যোগ কৰক।',
+      kha: 'Kheiñ sohniamtra bad ksing haduh 10.',
+      mni: 'কমলা অমসুং পিথা ১০ ফাওবা পুনশিন্দুনা থিবা।',
+      hi: 'संतरे, मिट्टी के दीये और बीहू पीठा 10 तक गिनकर जोड़ें।',
+    },
+    winConditionText: {
+      en: 'Solve at least 3 out of 4 sums correctly',
+      as: '৪ টাৰ ভিতৰত কমেও ৩ টা শুদ্ধ সমাধান কৰক',
+      kha: 'Jop 3 na ka 4',
+      mni: '৪ গী মনুংদা ৩ চুম্না পুথোকউ',
+      hi: '4 में से कम से कम 3 सही उत्तर दें',
+    },
+    questionsCount: 4,
+    mode: 'addition',
+    maxNumber: 10,
+    optionsCount: 3,
+    minCorrectToPass: 3,
+    allowHints: true,
+    pointsBase: 150,
+  },
+  {
+    level: 4,
+    difficulty: 'easy',
+    title: {
+      en: 'Sharing & Taking Away',
+      as: 'মৰমৰ বিলাই দিয়া (সহজ বিয়োগ)',
+      kha: 'Ka Sam bad Buhnoh (Biem)',
+      mni: 'য়েন্থোকপা অমসুং হন্থবা',
+      hi: 'बांटना और घटाना (सरल घटाव)',
+    },
+    description: {
+      en: 'Gentle subtraction: 5 tea cups served, 2 are taken, how many remain?',
+      as: 'সহজ বিয়োগ: ৫ কাপ চাহৰ পৰা ২ কাপ দিলে, আৰু কেইকাপ বাকী থাকিল?',
+      kha: 'Kheiñ noh kiba la sam.',
+      mni: '৫ গী মনুংদগী ২ চারবা মতুংদা কয়াম লৈখিগদগে?',
+      hi: 'सरल घटाव: 5 कप चाय में से 2 ले ली गई, कितनी बचीं?',
+    },
+    winConditionText: {
+      en: 'Solve at least 3 out of 4 subtractions',
+      as: '৪ টাৰ ভিতৰত কমেও ৩ টা শুদ্ধ বিয়োগ কৰক',
+      kha: 'Jop 3 na ka 4',
+      mni: '৪ গী মনুংদা ৩ চুম্না হন্থহল্লু',
+      hi: '4 में से कम से कम 3 सही घटाव हल करें',
+    },
+    questionsCount: 4,
+    mode: 'subtraction',
+    maxNumber: 10,
+    optionsCount: 3,
+    minCorrectToPass: 3,
+    allowHints: true,
+    pointsBase: 180,
+  },
+  {
+    level: 5,
+    difficulty: 'medium',
+    title: {
+      en: 'Which Basket Has More?',
+      as: 'কোনটো পাত্ৰত বেছি আছে? (তুলনা)',
+      kha: 'Kano ba Kham Bun? (Comparison)',
+      mni: 'কদাইদা হেন্না য়াই? (চাংদম্নবা)',
+      hi: 'किस टोकरी में अधिक है? (तुलना)',
+    },
+    description: {
+      en: 'Compare two groups of fruits or treats and pick the larger or smaller amount.',
+      as: 'দুটা গোটৰ ফল-মূল তুলনা কৰি কোনটো বেছি বা সমান চিনাক্ত কৰক।',
+      kha: 'Pynïapher kano ka kynhun ba kham bun.',
+      mni: 'অনীরোমগী মনুংদা কদাইদা হেন্না য়াইবা খঙদোকউ।',
+      hi: 'दो समूहों की तुलना करें और अधिक या सही मात्रा चुनें।',
+    },
+    winConditionText: {
+      en: 'Compare at least 4 out of 5 groups correctly',
+      as: '৫ টাৰ ভিতৰত কমেও ৪ টা শুদ্ধ তুলনা কৰক',
+      kha: 'Jop 4 na ka 5',
+      mni: '৫ গী মনুংদা ৪ চুম্না খল্লু',
+      hi: '5 में से कम से कम 4 सही तुलना करें',
+    },
+    questionsCount: 5,
+    mode: 'comparison',
+    maxNumber: 12,
+    optionsCount: 3,
+    minCorrectToPass: 4,
+    allowHints: true,
+    pointsBase: 220,
+  },
+  {
+    level: 6,
+    difficulty: 'medium',
+    title: {
+      en: 'Morning Market Stall',
+      as: 'পুৱাৰ বজাৰৰ হিচাপ',
+      kha: 'Ka Ïew Step (Market Math)',
+      mni: 'অয়ুক্কী কৈতেলগী হিসাব',
+      hi: 'सुबह का बाज़ार हिसाब',
+    },
+    description: {
+      en: 'Solve simple shopping arithmetic: coins, lemons, and Assam tea stall orders.',
+      as: 'বজাৰৰ সহজ অংক: পইচা, কাজিনেমু আৰু চাহৰ কাপৰ যোগ-বিয়োগ।',
+      kha: 'Kheiñ pisa bad jingshim ha ïew.',
+      mni: 'কৈতেলদা পোৎ লৈবগী লাইবা হিসাব তৌউ।',
+      hi: 'बाज़ार का सरल गणित: सिक्के, नींबू और चाय की गिनती।',
+    },
+    winConditionText: {
+      en: 'Solve at least 4 out of 5 market problems',
+      as: '৫ টাৰ ভিতৰত কমেও ৪ টা শুদ্ধ সমাধান কৰক',
+      kha: 'Jop 4 na ka 5',
+      mni: '৫ গী মনুংদা ৪ চুম্না তৌউ',
+      hi: '5 में से कम से कम 4 प्रश्न सही हल करें',
+    },
+    questionsCount: 5,
+    mode: 'mixed',
+    maxNumber: 15,
+    optionsCount: 4,
+    minCorrectToPass: 4,
+    allowHints: true,
+    pointsBase: 260,
+  },
+  {
+    level: 7,
+    difficulty: 'medium',
+    title: {
+      en: 'Nimble Arithmetic (Up to 20)',
+      as: 'ক্ষিপ্ৰ যোগ আৰু বিয়োগ (২০ লৈ)',
+      kha: 'Kheiñ Kloi (Haduh 20)',
+      mni: 'য়াম্না থুনা পুনশিনবা (২০)',
+      hi: 'फुर्तीला जोड़-घटाव (20 तक)',
+    },
+    description: {
+      en: 'Mixed additions and subtractions keeping your mental agility sharp and lively.',
+      as: '২০ লৈকে মিশ্ৰিত যোগ-বিয়োগেৰে স্মৃতি আৰু মনোযোগ সতেজ ৰাখক।',
+      kha: 'Pynkhlain jingmut da kaba kheiñ lang bad kheiñ noh.',
+      mni: 'পুনশিনবা অমসুং হন্থহনবগী লাইবা অরোইবা মশীক।',
+      hi: '20 तक मिश्रित जोड़ और घटाव से मन को सक्रिय रखें।',
+    },
+    winConditionText: {
+      en: 'Complete at least 4 out of 5 equations within 25s each',
+      as: 'প্ৰতিটোত ২৫ ছেকেণ্ডৰ ভিতৰত কমেও ৪ টা শুদ্ধ কৰক',
+      kha: 'Jop 4 na ka 5 hapoh 25s',
+      mni: 'সেকেন্ড ২৫ গী মনুংদা ৪ চুম্না লৈউ',
+      hi: 'प्रत्येक प्रश्न 25 सेकंड में कम से कम 4 सही करें',
+    },
+    questionsCount: 5,
+    mode: 'mixed',
+    maxNumber: 20,
+    optionsCount: 4,
+    minCorrectToPass: 4,
+    timePerQuestionSec: 25,
+    allowHints: true,
+    pointsBase: 300,
+  },
+  {
+    level: 8,
+    difficulty: 'hard',
+    title: {
+      en: 'Tea Garden Accountant',
+      as: 'চাহ বাগিচাৰ খতিয়ান (২২ ছেকেণ্ড)',
+      kha: 'U Nongkheiñ Bulaïew (22s)',
+      mni: 'চা য়োনফমগী হিসাব (২২ সে.)',
+      hi: 'चाय बागान बहीखाता (22 सेकंड)',
+    },
+    description: {
+      en: 'Solve double-digit sums and friendly calculations within 22 seconds.',
+      as: '২২ ছেকেণ্ডৰ ভিতৰত দুই সংখ্যাৰ সহজ যোগ আৰু খতিয়ান সমাধান কৰক।',
+      kha: 'Kheiñ pisa hapoh 22 second.',
+      mni: 'সেকেন্ড ২২ দা পুনশিনবা হিসাব তৌউ।',
+      hi: '22 सेकंड के भीतर दोहरे अंकों का सरल हिसाब लगाएं।',
+    },
+    winConditionText: {
+      en: 'Solve at least 4 out of 5 within time',
+      as: 'সময়ৰ ভিতৰত কমেও ৪ টা শুদ্ধ উত্তৰ দিয়ক',
+      kha: 'Jop 4 na ka 5',
+      mni: 'মতংগী মনুংদা ৪ চুম্না খল্লু',
+      hi: 'समय सीमा में 5 में से कम से कम 4 सही हल करें',
+    },
+    questionsCount: 5,
+    mode: 'mixed',
+    maxNumber: 25,
+    optionsCount: 4,
+    minCorrectToPass: 4,
+    timePerQuestionSec: 22,
+    allowHints: false,
+    pointsBase: 350,
+  },
+  {
+    level: 9,
+    difficulty: 'hard',
+    title: {
+      en: 'Brahmaputra Heritage Math',
+      as: 'ব্ৰহ্মপুত্ৰ ঐতিহ্য গণনা (২০ ছেকেণ্ড)',
+      kha: 'Ka Jingkheiñ Shnongbah (20s)',
+      mni: 'ঐতিহাসিক মশীক থিবা (২০ সে.)',
+      hi: 'ब्रह्मपुत्र धरोहर गणना (20 सेकंड)',
+    },
+    description: {
+      en: 'Quick mental calculations (addition, subtraction, and grouped items) in 20 seconds.',
+      as: '২০ ছেকেণ্ডৰ ক্ষিপ্ৰ গতিত ৬ টা অংকৰ কমেও ৫ টা সঠিক উত্তৰ দিয়ক।',
+      kha: 'Kheiñ kloi 6 tylli hapoh 20 second.',
+      mni: 'সেকেন্ড ২০ গী মনুংদা ৬ তগী ৫ চুম্না তৌউ।',
+      hi: '20 सेकंड में 6 में से 5 मानसिक गणनाएं सही हल करें।',
+    },
+    winConditionText: {
+      en: 'Solve at least 5 out of 6 correctly',
+      as: '৬ টাৰ ভিতৰত কমেও ৫ টা শুদ্ধ উত্তৰ দিয়ক',
+      kha: 'Jop 5 na ka 6',
+      mni: '৬ গী মনুংদা ৫ চুম্না তৌউ',
+      hi: '6 में से कम से कम 5 सही उत्तर दें',
+    },
+    questionsCount: 6,
+    mode: 'mixed',
+    maxNumber: 30,
+    optionsCount: 4,
+    minCorrectToPass: 5,
+    timePerQuestionSec: 20,
+    allowHints: false,
+    pointsBase: 400,
+  },
+  {
+    level: 10,
+    difficulty: 'hard',
+    title: {
+      en: 'Master of Calculations (Grand Finale)',
+      as: 'গণনাৰ চূড়ান্ত মহাবিদ্যান (চূড়ান্ত)',
+      kha: 'U Khlieh Jingkheiñ (Khadduh)',
+      mni: 'মশীক্কী মকোক (অরোইবা থাক)',
+      hi: 'गणित शिरोमणि (अंतिम सर्वोच्च स्तर)',
+    },
+    description: {
+      en: 'The grand arithmetic tribute: 6 fast, joyful calculations within 18 seconds each.',
+      as: 'চূড়ান্ত পৰ্যায়: ১৮ ছেকেণ্ডৰ ক্ষিপ্ৰ আৰু আত্মবিশ্বাসী গণনাত ৬ টাৰ ৫ টা সমাধান কৰক।',
+      kha: 'Ka kyrdan kaba kut: kheiñ 6 tylli hapoh 18 second.',
+      mni: 'খ্বায়দগী চাউবা থাক: সেকেন্ড ১৮ দা ৬ তা ৫ চুম্না তৌউ।',
+      hi: 'सर्वोच्च स्तर: 18 सेकंड में 6 में से 5 त्वरित गणनाएं सही हल करें।',
+    },
+    winConditionText: {
+      en: 'Complete at least 5 out of 6 correctly within 18s',
+      as: '১৮ ছেকেণ্ডৰ ভিতৰত কমেও ৫ টা শুদ্ধ উত্তৰ দিয়ক',
+      kha: 'Jop 5 na ka 6 hapoh 18s',
+      mni: 'মতং ১৮ সেকেন্ডদা ৫ চুম্না তৌউ',
+      hi: '18 सेकंड में 6 में से 5 सही हल करें',
+    },
+    questionsCount: 6,
+    mode: 'mixed',
+    maxNumber: 40,
+    optionsCount: 4,
+    minCorrectToPass: 5,
+    timePerQuestionSec: 18,
+    allowHints: false,
+    pointsBase: 500,
+  },
+];
+
 export function getGameLevels(gameType: GameType): BaseLevelConfig[] {
   switch (gameType) {
     case 'memory_match':
@@ -1571,6 +1908,8 @@ export function getGameLevels(gameType: GameType): BaseLevelConfig[] {
       return SIMPLE_PUZZLE_LEVELS;
     case 'face_match':
       return FACE_MATCH_LEVELS;
+    case 'simple_calculation':
+      return SIMPLE_CALCULATION_LEVELS;
     default:
       return MEMORY_MATCH_LEVELS;
   }

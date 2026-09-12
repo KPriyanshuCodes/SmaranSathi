@@ -1,10 +1,33 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, ArrowLeft, RefreshCw, HelpCircle, Check, Eye, Clock } from 'lucide-react';
+import { Volume2, RefreshCw, ArrowLeft, Eye, HelpCircle, CheckCircle2, Clock } from 'lucide-react';
 import { DifficultyLevel, RegionalLanguage, GameSession, LevelFinishResult } from '../../types';
 import { UI_TRANSLATIONS } from '../../data/nerContent';
-import { soundEffects, speakText } from '../../utils/speechAndAudio';
+import { soundEffects, speakText, speakHindi, speakGameCheerHindi } from '../../utils/speechAndAudio';
 import { getLevelConfig, SimplePuzzleLevelConfig } from '../../data/gameLevels';
 import { GameLevelBanner } from './GameLevelBanner';
+
+const PUZZLE_IMAGES = [
+  {
+    id: 'rhino',
+    title: { en: 'Kaziranga Rhino', as: 'এশিঙীয়া গঁড়', hi: 'काजीरंगा गैंडा', kha: 'U Rhino', mni: 'রাইনো' },
+    url: 'https://images.unsplash.com/photo-1575550959106-5a7defe28b56?w=600&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'tea_garden',
+    title: { en: 'Assam Tea Garden', as: 'চাহ বাগান', hi: 'असम चाय बागान', kha: 'Ka Kper Cha', mni: 'চা পাম' },
+    url: 'https://images.unsplash.com/photo-1588880331179-bc9b93a8cb5e?w=600&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'monastery',
+    title: { en: 'Tawang Monastery', as: 'তাৱাং মঠ', hi: 'तवांग मठ', kha: 'Ka Monastery', mni: 'মঠ' },
+    url: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=600&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'living_bridge',
+    title: { en: 'Living Root Bridge', as: 'জীৱন্ত শিপাৰ দলং', hi: 'लिविंग रूट ब्रिज', kha: 'Jingkieng Jri', mni: 'উরি থোং' },
+    url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=600&auto=format&fit=crop&q=80',
+  },
+];
 
 interface SimplePuzzleGameProps {
   difficulty?: DifficultyLevel;
@@ -16,29 +39,6 @@ interface SimplePuzzleGameProps {
   onBack: () => void;
   onExitToLevelSelect?: () => void;
 }
-
-const PUZZLE_IMAGES = [
-  {
-    id: 'puz-rhino',
-    title: { en: 'Kaziranga Rhino Sanctuary', as: 'কাজিৰঙাৰ গঁড়', kha: 'Ka Kaziranga', mni: 'কাজিরঙ্গা রাইনো', hi: 'काजीरंगा गैंडा' },
-    url: 'https://images.unsplash.com/photo-1581852017103-68ac65514cf7?auto=format&fit=crop&w=600&q=80',
-  },
-  {
-    id: 'puz-bridge',
-    title: { en: 'Meghalaya Living Root Bridge', as: 'মেঘালয়ৰ শিপাৰ দলং', kha: 'Jingkieng Jri', mni: 'মশাংগী থোং', hi: 'मेघालय रूट ब्रिज' },
-    url: 'https://images.unsplash.com/photo-1544644181-1484b3fdfc62?auto=format&fit=crop&w=600&q=80',
-  },
-  {
-    id: 'puz-tea',
-    title: { en: 'Lush Assam Tea Gardens', as: 'অসমৰ সেউজ চাহ বাগিচা', kha: 'Ki Kper Sha', mni: 'চা পাম্বী পাম', hi: 'असम के चाय बागान' },
-    url: 'https://images.unsplash.com/photo-1590502593747-42a996133562?auto=format&fit=crop&w=600&q=80',
-  },
-  {
-    id: 'puz-lake',
-    title: { en: 'Loktak Floating Lake', as: 'মণিপুৰৰ লোকটাক হ্ৰদ', kha: 'Ka Nan Loktak', mni: 'লোকতাক পাত', hi: 'मणिपुर की लोकतक झील' },
-    url: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80',
-  },
-];
 
 export const SimplePuzzleGame: React.FC<SimplePuzzleGameProps> = ({
   difficulty: propDifficulty = 'easy',
@@ -54,7 +54,7 @@ export const SimplePuzzleGame: React.FC<SimplePuzzleGameProps> = ({
   const levelConfig = getLevelConfig<SimplePuzzleLevelConfig>('simple_puzzle', level);
   const activeDifficulty = levelConfig.difficulty || propDifficulty;
 
-  const gridDimension = levelConfig.gridDimension || 2; // 2x2 or 3x3
+  const gridDimension = levelConfig.gridDimension || 2;
   const totalTiles = gridDimension * gridDimension;
 
   const [puzzleImage, setPuzzleImage] = useState(PUZZLE_IMAGES[(level - 1) % PUZZLE_IMAGES.length]);
@@ -62,10 +62,10 @@ export const SimplePuzzleGame: React.FC<SimplePuzzleGameProps> = ({
   const [selectedTileIndex, setSelectedTileIndex] = useState<number | null>(null);
   const [moves, setMoves] = useState(0);
   const [mistakes, setMistakes] = useState(0);
-  const [showHint, setShowHint] = useState(levelConfig.showGhostHint ?? true);
   const [startTime, setStartTime] = useState<number>(Date.now());
-  const [elapsedSec, setElapsedSec] = useState<number>(0);
-  const [timerRemainingSec, setTimerRemainingSec] = useState<number>(levelConfig.timeLimitSec || 0);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [timerRemainingSec, setTimerRemainingSec] = useState<number | null>(levelConfig.timeLimitSec || null);
+  const [showHint, setShowHint] = useState<boolean>(levelConfig.showGhostHint ?? true);
   const gameEndedRef = useRef(false);
 
   // Overall timer ticker
@@ -85,6 +85,7 @@ export const SimplePuzzleGame: React.FC<SimplePuzzleGameProps> = ({
     setTimerRemainingSec(levelConfig.timeLimitSec);
     const cd = setInterval(() => {
       setTimerRemainingSec((prev) => {
+        if (prev === null) return null;
         if (prev <= 1) {
           clearInterval(cd);
           handleTimeExpired();
@@ -101,6 +102,7 @@ export const SimplePuzzleGame: React.FC<SimplePuzzleGameProps> = ({
     if (gameEndedRef.current) return;
     gameEndedRef.current = true;
     soundEffects.playGentleEncouragement();
+    speakHindi('समय पूरा हुआ! आइए फिर से शांत मन से प्रयास करें।');
 
     const elapsedSeconds = levelConfig.timeLimitSec || 60;
     if (onFinishLevel) {
@@ -163,9 +165,16 @@ export const SimplePuzzleGame: React.FC<SimplePuzzleGameProps> = ({
   }, [level, propDifficulty]);
 
   useEffect(() => {
-    const prompt = `${t.simple_puzzle}. Tap two pieces to swap them into the right picture.`;
-    speakText(prompt, language);
-  }, [language, t]);
+    const imgNameHindi = puzzleImage.title.hi || puzzleImage.title.en;
+    const prompt = `शांत प्राकृतिक पहेली स्तर ${level}। ${imgNameHindi} की तस्वीर को पूरा करने के लिए टुकड़ों को सही जगह लगाएं।`;
+    speakHindi(prompt);
+  }, [level, puzzleImage]);
+
+  const handleVoiceGuide = () => {
+    soundEffects.playGentleTap();
+    const hindiInstruction = `किसी एक टुकड़े पर टैप करें, फिर दूसरे टुकड़े पर टैप करके उनकी जगह बदलें और ${puzzleImage.title.hi || 'तस्वीर'} को पूरा करें।`;
+    speakHindi(hindiInstruction);
+  };
 
   const handleTileClick = (index: number) => {
     if (gameEndedRef.current) return;
@@ -202,6 +211,7 @@ export const SimplePuzzleGame: React.FC<SimplePuzzleGameProps> = ({
       if (isSolved && !gameEndedRef.current) {
         gameEndedRef.current = true;
         soundEffects.playSuccessChime();
+        speakGameCheerHindi('win', `बधाई हो! आपने ${puzzleImage.title.hi || 'सुंदर तस्वीर'} की पहेली पूरी कर ली!`);
         setTimeout(() => {
           finishGame(newMoves, mistakes);
         }, 500);
@@ -218,13 +228,13 @@ export const SimplePuzzleGame: React.FC<SimplePuzzleGameProps> = ({
     );
 
     // Win check
-    const movesAllowed = levelConfig.maxMoves || (gridDimension === 2 ? 10 : 20);
+    const movesAllowed = levelConfig.maxMoves;
     const won = finalMoves <= movesAllowed;
     let stars = 0;
     if (won) {
-      if (finalMoves <= Math.max(gridDimension, Math.floor(movesAllowed * 0.6))) {
+      if (finalMoves <= (levelConfig.scrambleSwaps || 3) + 1) {
         stars = 3;
-      } else if (finalMoves <= Math.floor(movesAllowed * 0.85)) {
+      } else if (finalMoves <= movesAllowed - 2) {
         stars = 2;
       } else {
         stars = 1;
@@ -272,13 +282,14 @@ export const SimplePuzzleGame: React.FC<SimplePuzzleGameProps> = ({
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-4">
-      {/* Universal Level Banner */}
+      {/* Universal Level Banner with Hindi Voice */}
       <GameLevelBanner
         level={level}
         totalLevels={10}
         difficulty={activeDifficulty}
         levelTitle={levelConfig.title[language] || levelConfig.title.en}
         winConditionText={levelConfig.winConditionText[language] || levelConfig.winConditionText.en}
+        hindiVoicePrompt={`प्राकृतिक पहेली स्तर ${level}। ${gridDimension} गुणा ${gridDimension} ग्रिड में ${levelConfig.maxMoves} से कम चालों में तस्वीर जोड़ें।`}
         onExitToLevelSelect={onExitToLevelSelect || onBack}
         attempts={moves}
         maxAttempts={levelConfig.maxMoves}
@@ -287,7 +298,7 @@ export const SimplePuzzleGame: React.FC<SimplePuzzleGameProps> = ({
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-[28px] border-2 border-slate-200 shadow-xs">
+      <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-[28px] border-2 border-slate-200 shadow-xs flex-wrap gap-2">
         <button
           onClick={onBack}
           className="min-h-[48px] min-w-[48px] flex items-center justify-center p-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition-transform active:scale-95 cursor-pointer"
@@ -307,12 +318,22 @@ export const SimplePuzzleGame: React.FC<SimplePuzzleGameProps> = ({
         <div className="flex items-center gap-2">
           {levelConfig.timeLimitSec && levelConfig.timeLimitSec > 0 && (
             <div className={`px-2.5 py-1.5 rounded-xl border flex items-center gap-1 text-xs font-black ${
-              timerRemainingSec <= 10 ? 'bg-rose-50 border-rose-300 text-rose-700 animate-pulse' : 'bg-slate-100 border-slate-200 text-slate-800'
+              timerRemainingSec && timerRemainingSec <= 10 ? 'bg-rose-50 border-rose-300 text-rose-700 animate-pulse' : 'bg-slate-100 border-slate-200 text-slate-800'
             }`}>
               <Clock className="w-3.5 h-3.5" />
               <span>{timerRemainingSec}s</span>
             </div>
           )}
+
+          {/* Hindi Voice Guide */}
+          <button
+            onClick={handleVoiceGuide}
+            className="min-h-[48px] px-3.5 py-2 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-black shadow-xs active:translate-y-0.5 transition-all cursor-pointer flex items-center gap-1.5 text-xs sm:text-sm"
+            title="Listen in Hindi"
+          >
+            <Volume2 className="w-5 h-5 text-white" />
+            <span className="hidden sm:inline">हिंदी आवाज़</span>
+          </button>
 
           <button
             onClick={() => setShowHint(!showHint)}
@@ -337,11 +358,12 @@ export const SimplePuzzleGame: React.FC<SimplePuzzleGameProps> = ({
       <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-purple-50 border border-purple-200 text-purple-950 font-bold text-xs sm:text-sm">
         <div className="flex items-center gap-2">
           <HelpCircle className="w-5 h-5 text-purple-700 shrink-0" />
-          <span>Tap one piece, then tap another piece to swap them into place.</span>
+          <span>पहले एक टुकड़े पर टैप करें, फिर दूसरे टुकड़े पर टैप करके उन्हें आपस में बदलें।</span>
         </div>
         <button
-          onClick={() => speakText('Tap one piece, then tap another piece to swap them.', language)}
+          onClick={handleVoiceGuide}
           className="p-2 rounded-xl bg-purple-200 hover:bg-purple-300 text-purple-950 shrink-0 cursor-pointer"
+          title="निर्देश सुनें"
         >
           <Volume2 className="w-4 h-4" />
         </button>
@@ -379,22 +401,13 @@ export const SimplePuzzleGame: React.FC<SimplePuzzleGameProps> = ({
                 }`}
                 style={{
                   backgroundImage: `url(${puzzleImage.url})`,
-                  backgroundSize: `${gridDimension * 100}% ${gridDimension * 100}%`,
+                  backgroundSize: `${gridDimension * 100}%`,
                   backgroundPosition: `${xPercent}% ${yPercent}%`,
                 }}
               >
-                {showHint && (
-                  <div
-                    className={`absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full text-[10px] font-black shadow-xs ${
-                      isCorrect ? 'bg-emerald-600 text-white' : 'bg-slate-900/80 text-white'
-                    }`}
-                  >
-                    #{pieceVal + 1}
-                  </div>
-                )}
                 {isCorrect && (
-                  <div className="absolute bottom-1.5 right-1.5 bg-emerald-500 text-white p-0.5 rounded-full shadow-xs">
-                    <Check className="w-3.5 h-3.5" />
+                  <div className="absolute top-1.5 right-1.5 bg-emerald-500 text-white rounded-full p-0.5 shadow-xs">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
                   </div>
                 )}
               </button>
@@ -402,17 +415,20 @@ export const SimplePuzzleGame: React.FC<SimplePuzzleGameProps> = ({
           })}
         </div>
 
-        {/* Small Reference Thumbnail */}
+        {/* Target Preview Thumbnail */}
         {showHint && (
-          <div className="flex flex-col items-center gap-1.5 p-3 bg-white rounded-2xl border border-purple-200 shadow-xs">
-            <span className="text-[11px] font-black text-purple-900 uppercase tracking-wider">
-              Goal Picture
+          <div className="bg-white p-3.5 rounded-[24px] border-2 border-slate-200 shadow-xs max-w-[200px] text-center space-y-2">
+            <span className="text-xs font-black text-slate-700 block">
+              लक्ष्य तस्वीर:
             </span>
             <img
               src={puzzleImage.url}
-              alt="Goal"
-              className="w-28 h-28 object-cover rounded-xl border border-purple-100 shadow-inner"
+              alt="Target"
+              className="w-36 h-36 rounded-xl object-cover border border-slate-200 mx-auto shadow-xs"
             />
+            <span className="text-[11px] font-bold text-slate-500 block truncate">
+              {puzzleImage.title[language] || puzzleImage.title.hi || puzzleImage.title.en}
+            </span>
           </div>
         )}
       </div>

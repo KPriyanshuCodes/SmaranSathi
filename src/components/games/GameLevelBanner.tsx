@@ -1,7 +1,14 @@
-import React from 'react';
-import { ArrowLeft, Zap, Star, Trophy, Clock } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowLeft, Zap, Star, Trophy, Clock, Volume2, Square } from 'lucide-react';
 import { RegionalLanguage, DifficultyLevel } from '../../types';
-import { soundEffects } from '../../utils/soundEffects';
+import { 
+  soundEffects, 
+  speakHindi, 
+  stopSpeaking,
+  getGameVoicePreference,
+  setGameVoicePreference,
+  GameVoiceMode
+} from '../../utils/soundEffects';
 
 interface GameLevelBannerProps {
   level: number;
@@ -10,6 +17,7 @@ interface GameLevelBannerProps {
   levelTitle?: string;
   winConditionText?: string;
   language?: RegionalLanguage;
+  hindiVoicePrompt?: string;
   onExitToLevelSelect: () => void;
   attempts?: number;
   maxAttempts?: number;
@@ -23,26 +31,64 @@ export const GameLevelBanner: React.FC<GameLevelBannerProps> = ({
   difficulty,
   levelTitle,
   winConditionText,
+  language = 'hi',
+  hindiVoicePrompt,
   onExitToLevelSelect,
   attempts,
   maxAttempts,
   timeSec,
   timeLimitSec,
 }) => {
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [voiceMode, setVoiceMode] = useState<GameVoiceMode>(getGameVoicePreference());
+
   const difficultyBadge = {
     easy: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     medium: 'bg-amber-100 text-amber-800 border-amber-200',
     hard: 'bg-rose-100 text-rose-800 border-rose-200',
   }[difficulty];
 
+  const handleToggleVoice = () => {
+    if (isSpeaking) {
+      stopSpeaking();
+      setIsSpeaking(false);
+      return;
+    }
+
+    soundEffects.playGentleTap();
+    setIsSpeaking(true);
+
+    const defaultHindiGoal = winConditionText 
+      ? `स्तर ${level} का लक्ष्य है: ${winConditionText}` 
+      : `स्तर ${level} खेलें और आनंद लें।`;
+      
+    const textToSpeak = hindiVoicePrompt || `${levelTitle ? `${levelTitle}। ` : ''}${defaultHindiGoal}`;
+
+    speakHindi(textToSpeak, () => {
+      setIsSpeaking(false);
+    });
+  };
+
+  const handleToggleVoiceMode = () => {
+    soundEffects.playGentleTap();
+    const newMode = voiceMode === 'hindi' ? 'regional' : 'hindi';
+    setVoiceMode(newMode);
+    setGameVoicePreference(newMode);
+    
+    if (newMode === 'hindi') {
+      speakHindi('हिंदी आवाज़ सहायक सक्रिय है।');
+    }
+  };
+
   return (
-    <div className="bg-white rounded-2xl p-3 sm:p-4 border-2 border-slate-200 shadow-xs mb-4 space-y-2">
-      {/* Top row: Back button, Level number & Progress bar, Difficulty badge */}
-      <div className="flex items-center justify-between gap-3">
+    <div className="bg-white rounded-2xl p-3 sm:p-4 border-2 border-slate-200 shadow-xs mb-4 space-y-2.5">
+      {/* Top row: Back button, Level number & Progress bar, Voice & Stats */}
+      <div className="flex items-center justify-between gap-2.5 flex-wrap sm:flex-nowrap">
         <button
           id="game-level-exit-btn"
           onClick={() => {
             soundEffects.playGentleTap();
+            stopSpeaking();
             onExitToLevelSelect();
           }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0"
@@ -52,7 +98,7 @@ export const GameLevelBanner: React.FC<GameLevelBannerProps> = ({
         </button>
 
         {/* Level and Progress Bar */}
-        <div className="flex-1 max-w-md mx-auto">
+        <div className="flex-1 min-w-[200px] max-w-md mx-auto order-3 sm:order-2 w-full sm:w-auto">
           <div className="flex items-center justify-between text-xs font-black text-slate-800 mb-1">
             <span className="flex items-center gap-1.5">
               <Trophy className="w-3.5 h-3.5 text-amber-500" />
@@ -87,10 +133,35 @@ export const GameLevelBanner: React.FC<GameLevelBannerProps> = ({
           </div>
         </div>
 
-        {/* Live Stat Badges */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Voice Control & Live Stats */}
+        <div className="flex items-center gap-2 shrink-0 order-2 sm:order-3">
+          {/* Dedicated Hindi Voice Button */}
+          <button
+            id="hindi-voice-assist-btn"
+            onClick={handleToggleVoice}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs border ${
+              isSpeaking
+                ? 'bg-amber-500 text-white border-amber-600 animate-pulse ring-2 ring-amber-300'
+                : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
+            }`}
+            title="Listen in Hindi"
+          >
+            {isSpeaking ? (
+              <>
+                <Square className="w-3.5 h-3.5 fill-current" />
+                <span>रोकें</span>
+              </>
+            ) : (
+              <>
+                <Volume2 className="w-3.5 h-3.5 text-amber-700" />
+                <span className="hidden xs:inline">हिंदी आवाज़</span>
+                <span className="xs:hidden">हिंदी</span>
+              </>
+            )}
+          </button>
+
           {typeof timeSec === 'number' && (
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 text-slate-800 text-xs font-bold">
+            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-800 text-xs font-bold">
               <Clock className="w-3.5 h-3.5 text-blue-500" />
               <span>
                 {timeSec}s
@@ -100,7 +171,7 @@ export const GameLevelBanner: React.FC<GameLevelBannerProps> = ({
           )}
 
           {typeof attempts === 'number' && (
-            <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 text-slate-800 text-xs font-bold">
+            <div className="hidden md:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-800 text-xs font-bold">
               <span>
                 Tries: {attempts}
                 {maxAttempts ? ` / ${maxAttempts}` : ''}
@@ -110,10 +181,10 @@ export const GameLevelBanner: React.FC<GameLevelBannerProps> = ({
         </div>
       </div>
 
-      {/* Bottom row: Objective / Win Condition Pill */}
+      {/* Bottom row: Objective / Win Condition Pill with Hindi Guide */}
       {winConditionText && (
-        <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-900 text-xs">
-          <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-900 text-xs">
+          <div className="flex items-center gap-2 min-w-0">
             <Zap className="w-3.5 h-3.5 text-amber-600 shrink-0" />
             <span className="font-semibold truncate">
               <span className="font-bold">Goal:</span> {winConditionText}

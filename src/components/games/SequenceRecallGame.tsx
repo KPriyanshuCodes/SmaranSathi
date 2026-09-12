@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Volume2, RefreshCw, ArrowLeft, Play, Sparkles } from 'lucide-react';
 import { DifficultyLevel, RegionalLanguage, GameSession, LevelFinishResult } from '../../types';
 import { UI_TRANSLATIONS } from '../../data/nerContent';
-import { soundEffects, speakText } from '../../utils/speechAndAudio';
+import { soundEffects, speakText, speakHindi, speakGameCheerHindi } from '../../utils/speechAndAudio';
 import { getLevelConfig, SequenceRecallLevelConfig } from '../../data/gameLevels';
 import { GameLevelBanner } from './GameLevelBanner';
 
@@ -147,9 +147,15 @@ export const SequenceRecallGame: React.FC<SequenceRecallGameProps> = ({
   }, [level, propDifficulty]);
 
   useEffect(() => {
-    const prompt = `${t.sequence_recall}. ${t.sequence_recall_desc}`;
-    speakText(prompt, language);
-  }, [language, t]);
+    const promptHindi = `स्वर और लय की याददाश्त स्तर ${level}। धुन सुनकर याद रखें और उसी क्रम में दोहराएं।`;
+    speakHindi(promptHindi);
+  }, [level]);
+
+  const handleVoiceGuide = () => {
+    soundEffects.playGentleTap();
+    const hindiInstruction = `धुन को ध्यान से सुनें। जब धुन बजना बंद हो, तो उन्हीं वाद्ययंत्रों को उसी क्रम में दबाएं। कुल ${totalRounds} राउंड हैं।`;
+    speakHindi(hindiInstruction);
+  };
 
   const handleItemClick = (index: number) => {
     if (isPlayingSequence || sequence.length === 0) return;
@@ -171,17 +177,19 @@ export const SequenceRecallGame: React.FC<SequenceRecallGameProps> = ({
         soundEffects.playSuccessChime();
 
         if (round < totalRounds) {
+          speakHindi('बहुत बढ़िया! अगला राउंड शुरू हो रहा है।');
           setTimeout(() => {
             setRound((prev) => prev + 1);
             startRound(round + 1);
-          }, 900);
+          }, 1100);
         } else {
           // Completed all rounds!
           if (!gameEndedRef.current) {
             gameEndedRef.current = true;
+            speakGameCheerHindi('win');
             setTimeout(() => {
               finishGame(newAttempts, mistakes);
-            }, 300);
+            }, 400);
           }
         }
       }
@@ -191,9 +199,10 @@ export const SequenceRecallGame: React.FC<SequenceRecallGameProps> = ({
       const newMistakes = mistakes + 1;
       setMistakes(newMistakes);
       setUserStep(0);
+      speakHindi('कोई बात नहीं, धुन फिर से सुनिए।');
       setTimeout(() => {
         playSequence(sequence);
-      }, 900);
+      }, 1200);
     }
   };
 
@@ -257,20 +266,21 @@ export const SequenceRecallGame: React.FC<SequenceRecallGameProps> = ({
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-4">
-      {/* Universal Level Banner */}
+      {/* Universal Level Banner with Hindi Voice Guide */}
       <GameLevelBanner
         level={level}
         totalLevels={10}
         difficulty={activeDifficulty}
         levelTitle={levelConfig.title[language] || levelConfig.title.en}
         winConditionText={levelConfig.winConditionText[language] || levelConfig.winConditionText.en}
+        hindiVoicePrompt={`स्वर और लय की याददाश्त स्तर ${level}। ${totalRounds} राउंड्स में धुन को ध्यान से सुनकर दोहराएं।`}
         onExitToLevelSelect={onExitToLevelSelect || onBack}
         attempts={attempts}
         timeSec={elapsedSec}
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-[28px] border-2 border-slate-200 shadow-xs">
+      <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-[28px] border-2 border-slate-200 shadow-xs flex-wrap gap-2">
         <button
           onClick={onBack}
           className="min-h-[48px] min-w-[48px] flex items-center justify-center p-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition-transform active:scale-95 cursor-pointer"
@@ -288,6 +298,15 @@ export const SequenceRecallGame: React.FC<SequenceRecallGameProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Hindi Voice Guide */}
+          <button
+            onClick={handleVoiceGuide}
+            className="min-h-[48px] px-3.5 py-2 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-black shadow-xs active:translate-y-0.5 transition-all cursor-pointer flex items-center gap-1.5 text-xs sm:text-sm"
+            title="Listen in Hindi"
+          >
+            <Volume2 className="w-5 h-5 text-white" />
+            <span className="hidden sm:inline">हिंदी आवाज़</span>
+          </button>
           <button
             onClick={() => playSequence(sequence)}
             disabled={isPlayingSequence}
@@ -311,11 +330,11 @@ export const SequenceRecallGame: React.FC<SequenceRecallGameProps> = ({
         <p className="text-base sm:text-lg font-black text-slate-800">
           {isPlayingSequence ? (
             <span className="text-blue-900 animate-pulse flex items-center justify-center gap-2">
-              <Sparkles className="w-5 h-5 text-blue-600" /> Listen to the rhythm carefully...
+              <Sparkles className="w-5 h-5 text-blue-600" /> धुन बज रही है, ध्यान से सुनें...
             </span>
           ) : (
             <span className="text-emerald-800 font-black">
-              Your turn! Tap the instruments in the same order.
+              अब आपकी बारी! उसी क्रम में वाद्ययंत्रों पर टैप करें।
             </span>
           )}
         </p>

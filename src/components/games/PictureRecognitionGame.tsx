@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, ArrowLeft, CheckCircle2, HelpCircle, RefreshCw, Clock } from 'lucide-react';
+import { Volume2, RefreshCw, ArrowLeft, CheckCircle2, Clock, HelpCircle } from 'lucide-react';
 import { CulturalItem, DifficultyLevel, RegionalLanguage, GameSession, LevelFinishResult } from '../../types';
 import { CULTURAL_ITEMS, UI_TRANSLATIONS } from '../../data/nerContent';
-import { soundEffects, speakText } from '../../utils/speechAndAudio';
+import { soundEffects, speakText, speakHindi, speakGameCheerHindi } from '../../utils/speechAndAudio';
 import { getLevelConfig, PictureRecognitionLevelConfig } from '../../data/gameLevels';
 import { GameLevelBanner } from './GameLevelBanner';
 
@@ -31,19 +31,19 @@ export const PictureRecognitionGame: React.FC<PictureRecognitionGameProps> = ({
   const levelConfig = getLevelConfig<PictureRecognitionLevelConfig>('picture_recognition', level);
   const activeDifficulty = levelConfig.difficulty || propDifficulty;
 
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [questions, setQuestions] = useState<{ item: CulturalItem; options: CulturalItem[] }[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [attempts, setAttempts] = useState(0);
   const [mistakes, setMistakes] = useState(0);
   const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
   const [startTime, setStartTime] = useState<number>(Date.now());
-  const [elapsedSec, setElapsedSec] = useState<number>(0);
-  const [questionTimerSec, setQuestionTimerSec] = useState<number>(levelConfig.timePerQuestionSec || 0);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [questionTimerSec, setQuestionTimerSec] = useState<number | null>(levelConfig.timePerQuestionSec || null);
   const gameEndedRef = useRef(false);
 
-  // Overall timer ticker
+  // Timer ticker
   useEffect(() => {
     const timer = setInterval(() => {
       if (!gameEndedRef.current) {
@@ -53,13 +53,14 @@ export const PictureRecognitionGame: React.FC<PictureRecognitionGameProps> = ({
     return () => clearInterval(timer);
   }, [startTime]);
 
-  // Per-question countdown if timePerQuestionSec exists
+  // Question countdown timer if applicable
   useEffect(() => {
-    if (!levelConfig.timePerQuestionSec || levelConfig.timePerQuestionSec <= 0 || gameEndedRef.current) return;
+    if (!levelConfig.timePerQuestionSec || levelConfig.timePerQuestionSec <= 0) return;
 
     setQuestionTimerSec(levelConfig.timePerQuestionSec);
     const qTimer = setInterval(() => {
       setQuestionTimerSec((prev) => {
+        if (prev === null) return null;
         if (prev <= 1) {
           clearInterval(qTimer);
           // Auto advance if timer expires
@@ -78,6 +79,7 @@ export const PictureRecognitionGame: React.FC<PictureRecognitionGameProps> = ({
     soundEffects.playGentleEncouragement();
     setMistakes((prev) => prev + 1);
     setAttempts((prev) => prev + 1);
+    speakHindi('समय समाप्त हुआ! आइए अगला प्रश्न देखें।');
     advanceQuestion(correctAnswersCount);
   };
 
@@ -118,11 +120,19 @@ export const PictureRecognitionGame: React.FC<PictureRecognitionGameProps> = ({
 
   useEffect(() => {
     if (currentQuestion) {
-      const targetName = currentQuestion.item.name[language] || currentQuestion.item.name.en;
-      const prompt = `Can you recognize this treasure from ${currentQuestion.item.state_origin}?`;
-      speakText(prompt, language);
+      const stateOriginHindi = currentQuestion.item.state_origin || 'पूर्वोत्तर';
+      const prompt = `प्रश्न ${currentIndex + 1}। क्या आप ${stateOriginHindi} की इस सांस्कृतिक धरोहर को पहचान सकते हैं?`;
+      speakHindi(prompt);
     }
-  }, [currentIndex, currentQuestion, language]);
+  }, [currentIndex, currentQuestion]);
+
+  const handleVoiceGuide = () => {
+    if (!currentQuestion) return;
+    soundEffects.playGentleTap();
+    const stateOrigin = currentQuestion.item.state_origin || 'पूर्वोत्तर';
+    const hindiPrompt = `तस्वीर को ध्यान से देखें। यह ${stateOrigin} की धरोहर है। नीचे दिए गए विकल्पों में से सही नाम चुनें।`;
+    speakHindi(hindiPrompt);
+  };
 
   const handleOptionClick = (option: CulturalItem) => {
     if (selectedOptionId !== null) return;
@@ -136,23 +146,23 @@ export const PictureRecognitionGame: React.FC<PictureRecognitionGameProps> = ({
 
     if (correct) {
       soundEffects.playSuccessChime();
-      const itemName = option.name[language] || option.name.en;
-      speakText(`${t.well_done}! ${itemName}`, language);
+      const itemNameHindi = option.name.hi || option.name.en;
+      speakHindi(`बिल्कुल सही! यह ${itemNameHindi} है। बहुत बढ़िया!`);
       const newCorrect = correctAnswersCount + 1;
       setCorrectAnswersCount(newCorrect);
 
       setTimeout(() => {
         advanceQuestion(newCorrect);
-      }, 1400);
+      }, 1500);
     } else {
       soundEffects.playGentleEncouragement();
       const newMistakes = mistakes + 1;
       setMistakes(newMistakes);
-      speakText('Almost there! Take a gentle look at the photo.', language);
+      speakHindi('कोई बात नहीं, तस्वीर को ध्यान से देखें और अभ्यास जारी रखें।');
 
       setTimeout(() => {
         advanceQuestion(correctAnswersCount);
-      }, 1400);
+      }, 1500);
     }
   };
 
@@ -164,9 +174,10 @@ export const PictureRecognitionGame: React.FC<PictureRecognitionGameProps> = ({
     } else {
       if (!gameEndedRef.current) {
         gameEndedRef.current = true;
+        speakGameCheerHindi('win');
         setTimeout(() => {
           finishGame(attempts + 1, mistakes, finalCorrectCount);
-        }, 300);
+        }, 400);
       }
     }
   };
@@ -231,24 +242,31 @@ export const PictureRecognitionGame: React.FC<PictureRecognitionGameProps> = ({
     });
   };
 
-  if (!currentQuestion) return null;
+  if (!currentQuestion) {
+    return (
+      <div className="p-12 text-center text-slate-600 font-bold">
+        Loading culturally rich photos...
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-4">
-      {/* Universal Level Banner */}
+      {/* Universal Level Banner with Hindi Voice */}
       <GameLevelBanner
         level={level}
         totalLevels={10}
         difficulty={activeDifficulty}
         levelTitle={levelConfig.title[language] || levelConfig.title.en}
         winConditionText={levelConfig.winConditionText[language] || levelConfig.winConditionText.en}
+        hindiVoicePrompt={`चित्र पहचान स्तर ${level}। ${totalQuestions} में से कम से कम ${levelConfig.minCorrectToPass} सही पहचानें।`}
         onExitToLevelSelect={onExitToLevelSelect || onBack}
         attempts={attempts}
         timeSec={elapsedSec}
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-[28px] border-2 border-slate-200 shadow-xs">
+      <div className="flex items-center justify-between bg-white p-4 sm:p-5 rounded-[28px] border-2 border-slate-200 shadow-xs flex-wrap gap-2">
         <button
           onClick={onBack}
           className="min-h-[48px] min-w-[48px] flex items-center justify-center p-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition-transform active:scale-95 cursor-pointer"
@@ -268,21 +286,21 @@ export const PictureRecognitionGame: React.FC<PictureRecognitionGameProps> = ({
         <div className="flex items-center gap-2">
           {levelConfig.timePerQuestionSec && levelConfig.timePerQuestionSec > 0 && (
             <div className={`px-3 py-1.5 rounded-xl border flex items-center gap-1 text-xs font-black ${
-              questionTimerSec <= 5 ? 'bg-rose-50 border-rose-300 text-rose-700 animate-pulse' : 'bg-slate-100 border-slate-200 text-slate-800'
+              questionTimerSec && questionTimerSec <= 5 ? 'bg-rose-50 border-rose-300 text-rose-700 animate-pulse' : 'bg-slate-100 border-slate-200 text-slate-800'
             }`}>
               <Clock className="w-3.5 h-3.5" />
               <span>{questionTimerSec}s</span>
             </div>
           )}
 
+          {/* Hindi Voice Guide */}
           <button
-            onClick={() => {
-              speakText(`What is this picture from ${currentQuestion.item.state_origin}?`, language);
-            }}
-            className="min-h-[48px] min-w-[48px] flex items-center justify-center p-2.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black shadow-xs active:translate-y-0.5 transition-all cursor-pointer"
-            title="Read question aloud"
+            onClick={handleVoiceGuide}
+            className="min-h-[48px] px-3.5 py-2 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-black shadow-xs active:translate-y-0.5 transition-all cursor-pointer flex items-center gap-1.5 text-xs sm:text-sm"
+            title="Listen in Hindi"
           >
             <Volume2 className="w-5 h-5 text-white" />
+            <span className="hidden sm:inline">हिंदी आवाज़</span>
           </button>
           <button
             onClick={setupQuestions}
@@ -314,7 +332,7 @@ export const PictureRecognitionGame: React.FC<PictureRecognitionGameProps> = ({
       {/* Guidance */}
       <div className="text-center py-2">
         <p className="text-sm sm:text-base font-black text-slate-800">
-          Which treasure is shown above?
+          तस्वीर में कौन सी सांस्कृतिक धरोहर दिखाई दे रही है?
         </p>
       </div>
 
@@ -350,7 +368,7 @@ export const PictureRecognitionGame: React.FC<PictureRecognitionGameProps> = ({
                 </div>
                 <div>
                   <span className="text-sm sm:text-base font-black block leading-tight">
-                    {option.name[language] || option.name.en}
+                    {option.name[language] || option.name.hi || option.name.en}
                   </span>
                   <span className="text-xs text-slate-500 font-medium">
                     {option.state_origin}

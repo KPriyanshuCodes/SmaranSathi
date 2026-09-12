@@ -61,6 +61,13 @@ const GAME_METADATA: Record<GameType, { title: string; subtitle: string; icon: s
     themeColor: 'from-rose-500/20 to-pink-500/10 text-rose-900',
     borderColor: 'border-rose-200',
   },
+  simple_calculation: {
+    title: 'Simple Math & Calculation',
+    subtitle: 'Nurture numerical reasoning, counting fluency, and working memory',
+    icon: '🔢',
+    themeColor: 'from-amber-500/20 to-teal-500/10 text-amber-900',
+    borderColor: 'border-amber-200',
+  },
 };
 
 export const GameLevelSelectScreen: React.FC<GameLevelSelectScreenProps> = ({

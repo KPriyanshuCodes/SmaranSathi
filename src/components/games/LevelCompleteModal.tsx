@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Trophy, 
   Star, 
@@ -11,10 +11,11 @@ import {
   Target, 
   CheckCircle2, 
   AlertCircle,
-  Sparkles
+  Sparkles,
+  Volume2
 } from 'lucide-react';
 import { GameType, RegionalLanguage, LevelFinishResult } from '../../types';
-import { soundEffects } from '../../utils/soundEffects';
+import { soundEffects, speakHindi, speakGameCheerHindi, stopSpeaking } from '../../utils/soundEffects';
 
 interface LevelCompleteModalProps {
   result: LevelFinishResult | null;
@@ -62,10 +63,24 @@ export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
   useEffect(() => {
     if (won) {
       soundEffects.playSuccessChime();
+      const starText = stars === 3 ? 'तीन सितारे' : stars === 2 ? 'दो सितारे' : 'एक सितारा';
+      const prompt = `बधाई हो! आपने स्तर ${level} सफलतापूर्वक पूरा कर लिया है! आपको ${starText} मिले हैं।`;
+      speakHindi(prompt);
     } else {
       soundEffects.playGentleTap(350);
+      speakHindi(`स्तर ${level} का अच्छा प्रयास। थोड़ा और अभ्यास करें, आप निश्चित रूप से सफल होंगे।`);
     }
-  }, [won]);
+  }, [won, level, stars]);
+
+  const handleSpeakResults = () => {
+    soundEffects.playGentleTap();
+    if (won) {
+      const starText = stars === 3 ? 'तीन सितारे' : stars === 2 ? 'दो सितारे' : 'एक सितारा';
+      speakHindi(`शानदार प्रदर्शन! स्तर ${level} पूरा हुआ। स्कोर ${score}, सटीकता ${accuracy} प्रतिशत, और ${starText} मिले हैं।`);
+    } else {
+      speakHindi(`स्तर ${level} का अच्छा प्रयास। आपका स्कोर ${score} है। दोबारा प्रयास करने के लिए पुनः प्रयास पर टैप करें।`);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
@@ -106,16 +121,16 @@ export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
               }`}
             >
               {won ? <Sparkles className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
-              <span>{won ? `Level ${level} Cleared!` : `Level ${level} Complete`}</span>
+              <span>{won ? `Level ${level} Cleared! / स्तर ${level} पूर्ण!` : `Level ${level} Complete`}</span>
             </span>
 
             <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-              {won ? 'Outstanding Achievement!' : 'Good Effort! Keep Going'}
+              {won ? 'शानदार उपलब्धि! / Outstanding!' : 'अच्छा प्रयास! / Good Effort!'}
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 font-medium max-w-sm mx-auto">
               {won
-                ? winConditionMet || 'You successfully satisfied all the level objectives with calmness and skill.'
-                : failReason || 'Take your time and try again — steady practice strengthens long-term memory.'}
+                ? winConditionMet || 'आपने धैर्य और एकाग्रता से यह स्तर पूरा कर लिया है।'
+                : failReason || 'आराम से दोबारा अभ्यास करें — नियमित अभ्यास से याददाश्त तेज होती है।'}
             </p>
           </div>
         </div>
@@ -149,7 +164,7 @@ export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
           <div className="bg-white p-2.5 rounded-xl border border-slate-100 shadow-2xs">
             <div className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-center gap-1">
               <Award className="w-3 h-3 text-amber-500" />
-              <span>Score</span>
+              <span>Score / अंक</span>
             </div>
             <div className="text-lg font-black text-slate-900 mt-0.5">{score}</div>
           </div>
@@ -157,7 +172,7 @@ export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
           <div className="bg-white p-2.5 rounded-xl border border-slate-100 shadow-2xs">
             <div className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-center gap-1">
               <Clock className="w-3 h-3 text-blue-500" />
-              <span>Time</span>
+              <span>Time / समय</span>
             </div>
             <div className="text-lg font-black text-slate-900 mt-0.5">{timeSec}s</div>
           </div>
@@ -165,7 +180,7 @@ export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
           <div className="bg-white p-2.5 rounded-xl border border-slate-100 shadow-2xs">
             <div className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-center gap-1">
               <Target className="w-3 h-3 text-emerald-500" />
-              <span>Accuracy</span>
+              <span>Accuracy / सटीकता</span>
             </div>
             <div className="text-lg font-black text-slate-900 mt-0.5">{accuracy}%</div>
           </div>
@@ -173,12 +188,23 @@ export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
           <div className="bg-white p-2.5 rounded-xl border border-slate-100 shadow-2xs">
             <div className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-center gap-1">
               <CheckCircle2 className="w-3 h-3 text-indigo-500" />
-              <span>Attempts</span>
+              <span>Tries / प्रयास</span>
             </div>
             <div className="text-lg font-black text-slate-900 mt-0.5">
               {attempts} {mistakes > 0 ? `(${mistakes} err)` : ''}
             </div>
           </div>
+        </div>
+
+        {/* Hindi Voice Listen Button */}
+        <div className="flex justify-center">
+          <button
+            onClick={handleSpeakResults}
+            className="px-4 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+          >
+            <Volume2 className="w-4 h-4 text-amber-700" />
+            <span>परिणाम हिंदी में सुनें</span>
+          </button>
         </div>
 
         {/* Main Action Buttons */}
@@ -188,11 +214,12 @@ export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
               id="level-complete-next-btn"
               onClick={() => {
                 soundEffects.playGentleTap(600);
+                stopSpeaking();
                 onNextLevel();
               }}
               className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-base flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 hover:scale-[1.01] transition-all cursor-pointer"
             >
-              <span>Next Level ({level + 1})</span>
+              <span>Next Level ({level + 1}) / अगला स्तर</span>
               <ArrowRight className="w-5 h-5" />
             </button>
           ) : null}
@@ -202,6 +229,7 @@ export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
             id="level-complete-retry-btn"
             onClick={() => {
               soundEffects.playGentleTap();
+              stopSpeaking();
               handleRetryAction();
             }}
             className={`w-full py-3.5 px-6 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
@@ -211,7 +239,7 @@ export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
             }`}
           >
             <RotateCcw className="w-4 h-4" />
-            <span>{won ? 'Replay This Level' : 'Try Again'}</span>
+            <span>{won ? 'Replay Level / पुनः खेलें' : 'Try Again / फिर कोशिश करें'}</span>
           </button>
 
           {/* Navigation Secondary Row */}
@@ -220,18 +248,20 @@ export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
               id="level-complete-select-levels-btn"
               onClick={() => {
                 soundEffects.playGentleTap();
+                stopSpeaking();
                 handleBackToSelectAction();
               }}
               className="flex-1 py-3 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer"
             >
               <Grid className="w-4 h-4 text-slate-500" />
-              <span>Select Level</span>
+              <span>Levels / स्तर सूची</span>
             </button>
 
             <button
               id="level-complete-home-btn"
               onClick={() => {
                 soundEffects.playGentleTap();
+                stopSpeaking();
                 if (onReturnHome) {
                   onReturnHome();
                 } else {
@@ -241,7 +271,7 @@ export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
               className="flex-1 py-3 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer"
             >
               <Home className="w-4 h-4 text-slate-500" />
-              <span>Return Home</span>
+              <span>Home / मुख्य पृष्ठ</span>
             </button>
           </div>
         </div>
