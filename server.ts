@@ -1009,9 +1009,12 @@ app.post('/api/users', (req: Request, res: Response) => {
   // Check if user already exists by ID
   const existingIdx = id ? users.findIndex(u => u.id === id) : -1;
   if (existingIdx >= 0) {
+    const existingPatientId = users[existingIdx].patient_id;
     users[existingIdx] = {
       ...users[existingIdx],
       ...req.body,
+      // Patient ID is fixed and permanent - cannot be overwritten or changed
+      ...(existingPatientId ? { patient_id: existingPatientId } : {}),
       id,
       updated_at: new Date().toISOString()
     };

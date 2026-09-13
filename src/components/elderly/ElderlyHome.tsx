@@ -21,6 +21,8 @@ import {
   Bell,
   HeartHandshake,
   ShieldCheck,
+  Lock,
+  Copy,
   Camera,
   Edit3,
   Calendar,
@@ -295,6 +297,25 @@ export const ElderlyHome: React.FC<ElderlyHomeProps> = ({
               <span className="text-sm text-[#2794EB] font-bold bg-white/95 px-2.5 py-0.5 rounded-full border border-[#47D6B6]">
                 📍 {user.location || 'Guwahati, Assam'}
               </span>
+              <div 
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/95 border border-[#47D6B6] text-xs font-black text-[#2794EB] shadow-2xs"
+                title="Fixed Patient ID (Cannot be changed)"
+              >
+                <Lock className="w-3 h-3 text-[#17B3C1]" />
+                <span className="font-mono font-bold tracking-wide">ID: {user.patient_id || 'PT-1001'}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = user.patient_id || 'PT-1001';
+                    navigator.clipboard?.writeText(id);
+                    soundEffects.playSuccessChime();
+                  }}
+                  className="hover:text-[#17B3C1] cursor-pointer p-0.5"
+                  title="Copy Patient ID"
+                >
+                  <Copy className="w-3 h-3" />
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => {

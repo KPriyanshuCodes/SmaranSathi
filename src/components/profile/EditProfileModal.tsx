@@ -10,6 +10,7 @@ import {
   FileText, 
   Lock, 
   ShieldCheck, 
+  Copy,
   Check, 
   Sparkles, 
   Heart, 
@@ -84,8 +85,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const [faceRegisteredAt, setFaceRegisteredAt] = useState<string | null>(user.face_registered_at || null);
   const [isFaceScannerOpen, setIsFaceScannerOpen] = useState(false);
   
-  // Role-specific fields
-  const [patientId, setPatientId] = useState(user.patient_id || (user.role === 'elderly' ? `PT-${Math.floor(1000 + Math.random() * 9000)}` : ''));
+  // Role-specific fields (Patient ID is fixed and permanent, patients cannot change it)
+  const fixedPatientId = user.patient_id || (user.role === 'elderly' ? `PT-${user.id ? user.id.replace(/\D/g, '').slice(-4) || '1001' : '1001'}` : '');
   const [age, setAge] = useState<number>(user.age || 72);
   const [diagnosisNote, setDiagnosisNote] = useState(user.diagnosis_note || '');
   const [dementiaStage, setDementiaStage] = useState<DementiaStage>(user.dementia_stage || 'mild');
@@ -224,7 +225,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       ...(location.trim() ? { location: location.trim() } : {}),
       ...(diagnosisNote.trim() ? { diagnosis_note: diagnosisNote.trim() } : {}),
       ...(isElderly ? { 
-        patient_id: patientId.trim().toUpperCase() || user.patient_id || `PT-${Math.floor(1000 + Math.random() * 9000)}`,
+        patient_id: user.patient_id || fixedPatientId,
         dementia_stage: dementiaStage,
         connected_caregiver_id: connectedCaregiverId.trim() || undefined,
         connected_caregiver_name: connectedCaregiverName.trim() || undefined,
@@ -599,27 +600,31 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
                       <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-                      Patient ID Code
+                      <span>Patient ID Code</span>
                     </label>
                     <button
                       type="button"
                       onClick={() => {
-                        if (patientId) {
-                          navigator.clipboard?.writeText(patientId);
+                        if (fixedPatientId) {
+                          navigator.clipboard?.writeText(fixedPatientId);
                           soundEffects.playSuccessChime();
                         }
                       }}
-                      className="text-[10px] font-black text-amber-800 hover:underline cursor-pointer"
+                      className="inline-flex items-center gap-1 text-[10px] font-black text-amber-800 hover:underline cursor-pointer"
+                      title="Copy Patient ID"
                     >
-                      Copy ID
+                      <Copy className="w-3 h-3" />
+                      <span>Copy ID</span>
                     </button>
                   </div>
                   <input
                     type="text"
-                    value={patientId}
-                    onChange={(e) => setPatientId(e.target.value.toUpperCase())}
+                    readOnly
+                    disabled
+                    value={fixedPatientId}
                     placeholder="e.g. PT-1001"
-                    className="w-full font-mono uppercase px-3 py-2.5 rounded-xl border-2 border-amber-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm font-black bg-white text-gray-900"
+                    className="w-full font-mono uppercase px-3 py-2.5 rounded-xl border-2 border-amber-200 text-sm font-black bg-amber-50/60 text-gray-700 cursor-not-allowed select-all outline-none"
+                    title="Patient ID cannot be changed."
                   />
                   <p className="text-[10px] text-gray-500 font-semibold">
                     Unique identifier for caregivers to link and assist with care routines.
